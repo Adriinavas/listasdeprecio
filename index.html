@@ -126,6 +126,7 @@ td.num{text-align:right}
 .list-footer{border-top:1px solid var(--border);padding:16px 18px}
 .list-total{display:flex;justify-content:space-between;font-weight:700;font-size:16px;margin-bottom:12px}
 .btn-primary{width:100%;padding:12px;background:var(--gold);color:#fff;border:0;border-radius:var(--radius);font-weight:700;font-size:14.5px;cursor:pointer}
+.list-footer .btn-primary{flex:1;width:auto}
 .btn-primary:disabled{background:var(--border-strong);cursor:not-allowed}
 .btn-primary:hover:not(:disabled){background:var(--gold-dark)}
 
@@ -222,13 +223,18 @@ td.num{text-align:right}
   <div class="list-items" id="listItems"><div class="list-empty">Aún no has agregado productos.</div></div>
   <div class="list-footer">
     <div class="list-total"><span>Total</span><span id="listTotal">$0.00</span></div>
-    <button class="btn-primary" id="btnExportExcel" disabled>Generar Excel</button>
+    <div style="display:flex;gap:10px">
+      <button class="btn-primary" id="btnExportExcel" disabled style="background:var(--navy)">Generar Excel</button>
+      <button class="btn-primary" id="btnExportPDF" disabled>Generar PDF</button>
+    </div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
@@ -655,6 +661,7 @@ function updateListUI(){
   $('#listCount').textContent = count;
   $('#listTotal').textContent = money(total);
   $('#btnExportExcel').disabled = lines.length === 0;
+  $('#btnExportPDF').disabled = lines.length === 0;
 
   const el = $('#listItems');
   if (lines.length === 0){
@@ -713,7 +720,6 @@ function selectClient(c){
   $('#clientChipName').textContent = c.name;
   $('#clientChipCode').textContent = '(' + c.code + ')';
   $('#clientChip').classList.add('on');
-  $('#noClientNote').classList.add('hidden');
   clientSearchEl.value = '';
   clientResultsEl.classList.add('hidden');
   clientSearchEl.closest('.clientSearchWrap').style.display = 'none';
@@ -724,7 +730,6 @@ function selectClient(c){
 $('#clientChipClear').addEventListener('click', () => {
   selectedClient = null;
   $('#clientChip').classList.remove('on');
-  $('#noClientNote').classList.remove('hidden');
   clientSearchEl.closest('.clientSearchWrap').style.display = '';
   list = {};
   selectedCodes.clear();
@@ -857,7 +862,165 @@ $('#btnExportExcel').addEventListener('click', async () => {
   }
 });
 
+/* ======================= Exportar a PDF (mismo formato que la cotización) ======================= */
+function nextPedidoNumero(){
+  let n = parseInt(localStorage.getItem('portalprecios_pedido_seq') || '0', 10) + 1;
+  if (!Number.isFinite(n) || n < 1) n = 1;
+  localStorage.setItem('portalprecios_pedido_seq', String(n));
+  return String(n).padStart(4, '0');
+}
+
+$('#btnExportPDF').addEventListener('click', async () => {
+  const lines = listLines();
+  if (!lines.length) return;
+  const btn = $('#btnExportPDF');
+  const original = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Generando...';
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const pageW = doc.internal.pageSize.getWidth();
+    const marginX = 14;
+    const rightX = pageW - marginX;
+    const BLUE = [22, 50, 74]; // var(--navy)
+
+    const now = new Date();
+    const fecha = now.toLocaleDateString('es-VE');
+    const hora = now.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' });
+    const pedidoNumero = nextPedidoNumero();
+
+    function drawHeader(){
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(20);
+      doc.setTextColor(20, 24, 33);
+      doc.text('Pedido sugerido', rightX, 20, { align: 'right' });
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(70, 75, 85);
+      doc.text('Nro. ' + pedidoNumero, rightX, 27, { align: 'right' });
+      doc.text('Fecha: ' + fecha, rightX, 32, { align: 'right' });
+      doc.text('Hora: ' + hora, rightX, 37, { align: 'right' });
+
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(16);
+      doc.setTextColor(...BLUE);
+      doc.text('Portal de Precios', marginX, 20);
+    }
+
+    drawHeader();
+
+    const totalGeneral = lines.reduce((a,l) => a + l.subtotal, 0);
+    let y = 48;
+    doc.setFillColor(...BLUE);
+    doc.roundedRect(marginX, y, rightX - marginX, 22, 2, 2, 'F');
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(255, 255, 255);
+    doc.text('Total pedido sugerido', marginX + 6, y + 8);
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(18);
+    doc.text(money(totalGeneral), marginX + 6, y + 17);
+    y += 22 + 10;
+
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...BLUE);
+    doc.text('Datos del cliente', marginX, y);
+    y += 6;
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(20, 24, 33);
+    doc.text(selectedClient ? selectedClient.name : '—', marginX, y);
+    y += 5;
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(40, 44, 52);
+    doc.text('Código: ' + (selectedClient ? selectedClient.code : '—'), marginX, y);
+    y += 8;
+
+    const rows = lines.map(l => [
+      '', l.desc + '\nCódigo: ' + l.codigo + (l.marca ? '\nMarca: ' + l.marca : ''),
+      String(l.qty), money(l.price), money(l.subtotal)
+    ]);
+    const imgColW = 20;
+    const imgRows = await Promise.all(lines.map(async l => {
+      const src = getPhotoSrcBig(l.codigo);
+      return src ? await urlToBase64(src) : null;
+    }));
+
+    function drawContinuationHeader(){
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(40, 44, 52);
+      doc.text('Pedido sugerido ' + pedidoNumero + (selectedClient ? ' — ' + selectedClient.name : ''), marginX, 14);
+    }
+    function drawPageFooter(data){
+      if (data.pageNumber > 1) drawContinuationHeader();
+      const footY = doc.internal.pageSize.getHeight() - 12;
+      doc.setDrawColor(222, 226, 230);
+      doc.setLineWidth(0.3);
+      doc.line(marginX, footY - 5, rightX, footY - 5);
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(140, 145, 155);
+      doc.text('Precios y cantidades sujetas a cambio sin previo aviso · Precios no incluyen IVA', pageW / 2, footY, { align: 'center' });
+    }
+
+    doc.autoTable({
+      startY: y,
+      head: [['Imagen', 'Artículo', 'Cantidad', 'Precio Unitario', 'Subtotal']],
+      body: rows,
+      theme: 'plain',
+      styles: { fontSize: 9, cellPadding: { top: 4, bottom: 4, left: 3, right: 3 }, lineWidth: { bottom: 0.2 }, lineColor: [222, 226, 230], minCellHeight: 20, valign: 'middle' },
+      headStyles: { fillColor: [240, 242, 245], textColor: [90, 95, 105], fontStyle: 'bold', lineWidth: 0, cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 }, minCellHeight: 0 },
+      columnStyles: {
+        0: { cellWidth: imgColW },
+        2: { cellWidth: 22, halign: 'right' },
+        3: { cellWidth: 32, halign: 'right' },
+        4: { cellWidth: 32, halign: 'right' }
+      },
+      didParseCell: function(data){ if ([2,3,4].includes(data.column.index)) data.cell.styles.halign = 'right'; },
+      margin: { top: 16, left: marginX, right: marginX, bottom: 18 },
+      didDrawCell: function(data){
+        if (data.column.index === 0 && data.cell.section === 'body'){
+          const src = imgRows[data.row.index];
+          if (src){
+            const pad = 2;
+            const size = Math.min(data.cell.width - pad * 2, data.cell.height - pad * 2);
+            const x = data.cell.x + (data.cell.width - size) / 2;
+            const yImg = data.cell.y + (data.cell.height - size) / 2;
+            const formato = src.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+            try { doc.addImage(src, formato, x, yImg, size, size); } catch (e) { /* ignora fotos con formato inesperado */ }
+          }
+        }
+      },
+      didDrawPage: drawPageFooter
+    });
+
+    let nextY = doc.lastAutoTable.finalY + 10;
+    if (nextY + 14 > doc.internal.pageSize.getHeight() - 20){ doc.addPage(); nextY = 24; }
+    doc.setFillColor(...BLUE);
+    doc.roundedRect(marginX, nextY, rightX - marginX, 12, 1.5, 1.5, 'F');
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(255, 255, 255);
+    doc.text('Total $', marginX + 5, nextY + 8);
+    doc.text(money(totalGeneral), rightX - 5, nextY + 8, { align: 'right' });
+
+    const safeName = (selectedClient ? selectedClient.name : 'lista').replace(/[^a-z0-9]+/gi, '_').slice(0, 40);
+    doc.save(`Pedido_sugerido_${pedidoNumero}_${safeName}.pdf`);
+    toast('PDF generado ✓');
+  } catch (err){
+    console.error('Error generando el PDF:', err);
+    alert('Ocurrió un error generando el PDF. Intenta de nuevo.');
+  } finally {
+    btn.disabled = false; btn.textContent = original;
+  }
+});
+
 /* ======================= Carga inicial ======================= */
+const DEFAULT_CLIENT_CODE = '25-10-718';
+
 async function init(){
   try {
     const [articulosCsv, clientesCsv] = await Promise.all([
@@ -867,7 +1030,9 @@ async function init(){
     PRODUCTS = buildProducts(articulosCsv);
     CLIENTS = buildClients(clientesCsv);
     renderAllFilterGroups();
-    renderTable();
+    const defaultClient = CLIENTS.find(c => c.code === DEFAULT_CLIENT_CODE);
+    if (defaultClient) selectClient(defaultClient);
+    else renderTable();
   } catch (err){
     console.error('Error cargando catálogo/clientes:', err);
     $('#resultCount').textContent = 'No se pudo cargar el catálogo. Verifica tu conexión y recarga la página.';
