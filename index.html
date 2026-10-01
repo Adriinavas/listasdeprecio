@@ -332,6 +332,8 @@ function buildProducts(text){
     if (!codigo) continue;
     const estado = (row[iEstado] || '').trim();
     if (estado !== 'P1') continue; // solo productos "Disponible para la venta"
+    const disponible = parseFloat(row[iDisp]) || 0;
+    if (disponible <= 0) continue; // se ocultan los productos sin existencia
     const precios = {};
     PRICE_LIST_COLUMNS.forEach((col, i) => {
       const v = parseFloat(row[priceIdx[i]]);
@@ -340,7 +342,7 @@ function buildProducts(text){
     out.push({
       codigo,
       descripcion: (row[iDesc] || '').trim(),
-      disponible: parseFloat(row[iDisp]) || 0,
+      disponible,
       categoria: (row[iCat] || '').trim() || 'Sin categoría',
       subcategoria: (row[iSub] || '').trim() || 'Sin subcategoría',
       marca: (row[iMarca] || '').trim() || 'Sin marca',
@@ -634,7 +636,7 @@ function listLines(){
     if (!p) return null;
     const qty = list[codigo].qty;
     const price = priceFor(p) || 0;
-    return { codigo, desc: p.descripcion, marca: p.marca, qty, price, subtotal: price * qty };
+    return { codigo, desc: p.descripcion, marca: p.marca, qty, price, subtotal: price * qty, factorVenta: p.factorVenta };
   }).filter(Boolean);
 }
 
@@ -764,7 +766,8 @@ $('#btnExportExcel').addEventListener('click', async () => {
       { header: 'Descripción', key: 'desc', width: 42 },
       { header: 'Marca', key: 'marca', width: 18 },
       { header: 'Precio', key: 'precio', width: 14 },
-      { header: 'Cantidad', key: 'cantidad', width: 12 }
+      { header: 'Cantidad empaque', key: 'empaque', width: 16 },
+      { header: 'Cantidad pedido', key: 'pedido', width: 16 }
     ];
     ws.getRow(1).font = { bold: true };
     if (selectedClient){
@@ -778,7 +781,7 @@ $('#btnExportExcel').addEventListener('click', async () => {
     for (let i = 0; i < lines.length; i++){
       const l = lines[i];
       const rowIdx = headerRowIdx + 1 + i;
-      ws.getRow(rowIdx).values = { codigo: l.codigo, desc: l.desc, marca: l.marca, precio: l.price, cantidad: l.qty };
+      ws.getRow(rowIdx).values = { codigo: l.codigo, desc: l.desc, marca: l.marca, precio: l.price, empaque: l.factorVenta, pedido: null };
       ws.getRow(rowIdx).height = 50;
 
       const photoUrl = getPhotoSrcBig(l.codigo);
@@ -787,9 +790,12 @@ $('#btnExportExcel').addEventListener('click', async () => {
         if (dataUrl){
           const ext = dataUrl.startsWith('data:image/png') ? 'png' : 'jpeg';
           const imgId = wb.addImage({ base64: dataUrl, extension: ext });
+          // Ancla la imagen al rango exacto de la celda "Foto" de esta fila (columna A),
+          // para que quede incrustada dentro de la celda en vez de flotando encima.
           ws.addImage(imgId, {
-            tl: { col: 0.15, row: rowIdx - 1 + 0.1 },
-            ext: { width: 46, height: 46 }
+            tl: { col: 0.05, row: (rowIdx - 1) + 0.05 },
+            br: { col: 0.95, row: rowIdx - 0.05 },
+            editAs: 'oneCell'
           });
         }
       }
