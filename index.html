@@ -759,6 +759,40 @@ async function urlToBase64(url){
   } catch (e) { return null; }
 }
 
+// Obtiene el ancho/alto real de una imagen (con límite de tiempo, por si falla la decodificación)
+function getImageNaturalSize(dataUrl){
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (w, h) => { if (!done){ done = true; resolve({ w: w || 1, h: h || 1 }); } };
+    const img = new Image();
+    img.onload = () => finish(img.naturalWidth, img.naturalHeight);
+    img.onerror = () => finish(1, 1);
+    img.src = dataUrl;
+    setTimeout(() => finish(1, 1), 1200);
+  });
+}
+
+const PHOTO_COL_WIDTH_CHARS = 24; // debe coincidir con el ancho de la columna "Foto"
+const PHOTO_ROW_HEIGHT_PTS = 120; // debe coincidir con el alto de fila usado para cada línea
+
+// Calcula el anclaje de la imagen dentro de la celda tipo "contener" (como object-fit:contain):
+// la escala y centra sin deformarla, dejando el sobrante como margen parejo a los lados.
+function computePhotoAnchor(natW, natH, rowIdx){
+  const colWidthPx = PHOTO_COL_WIDTH_CHARS * 7 + 5;
+  const rowHeightPx = PHOTO_ROW_HEIGHT_PTS * (96 / 72);
+  const pad = 8;
+  const usableW = Math.max(10, colWidthPx - pad * 2);
+  const usableH = Math.max(10, rowHeightPx - pad * 2);
+  const scale = Math.min(usableW / natW, usableH / natH);
+  const scaledW = natW * scale, scaledH = natH * scale;
+  const fracX = Math.max(0, Math.min(0.49, (colWidthPx - scaledW) / 2 / colWidthPx));
+  const fracY = Math.max(0, Math.min(0.49, (rowHeightPx - scaledH) / 2 / rowHeightPx));
+  return {
+    tl: { col: fracX, row: (rowIdx - 1) + fracY },
+    br: { col: 1 - fracX, row: rowIdx - fracY }
+  };
+}
+
 $('#btnExportExcel').addEventListener('click', async () => {
   const lines = listLines();
   if (!lines.length) return;
@@ -769,7 +803,7 @@ $('#btnExportExcel').addEventListener('click', async () => {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Lista de precios');
     ws.columns = [
-      { header: 'Foto', key: 'foto', width: 24 },
+      { header: 'Foto', key: 'foto', width: PHOTO_COL_WIDTH_CHARS },
       { header: 'Código', key: 'codigo', width: 16 },
       { header: 'Descripción', key: 'desc', width: 42 },
       { header: 'Marca', key: 'marca', width: 18 },
@@ -791,7 +825,7 @@ $('#btnExportExcel').addEventListener('click', async () => {
       const l = lines[i];
       const rowIdx = headerRowIdx + 1 + i;
       ws.getRow(rowIdx).values = { codigo: l.codigo, desc: l.desc, marca: l.marca, precio: l.price, empaque: l.factorVenta, pedido: null, promocion: l.promocion };
-      ws.getRow(rowIdx).height = 120;
+      ws.getRow(rowIdx).height = PHOTO_ROW_HEIGHT_PTS;
 
       const photoUrl = getPhotoSrcBig(l.codigo);
       if (photoUrl){
@@ -799,13 +833,11 @@ $('#btnExportExcel').addEventListener('click', async () => {
         if (dataUrl){
           const ext = dataUrl.startsWith('data:image/png') ? 'png' : 'jpeg';
           const imgId = wb.addImage({ base64: dataUrl, extension: ext });
-          // Ancla la imagen al rango exacto de la celda "Foto" de esta fila (columna A),
-          // para que quede incrustada dentro de la celda en vez de flotando encima.
-          ws.addImage(imgId, {
-            tl: { col: 0.05, row: (rowIdx - 1) + 0.05 },
-            br: { col: 0.95, row: rowIdx - 0.05 },
-            editAs: 'oneCell'
-          });
+          const { w: natW, h: natH } = await getImageNaturalSize(dataUrl);
+          const anchor = computePhotoAnchor(natW, natH, rowIdx);
+          // Ancla la imagen centrada dentro de la celda, escalada sin deformar
+          // (como object-fit:contain), en vez de estirarla o dejarla con su tamaño original.
+          ws.addImage(imgId, { tl: anchor.tl, br: anchor.br, editAs: 'twoCell' });
         }
       }
     }
