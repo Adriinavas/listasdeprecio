@@ -430,19 +430,48 @@ function countsBy(field){
   return counts;
 }
 
+/* Productos que cumplen todos los filtros activos EXCEPTO el del propio campo
+   (así cada grupo de filtro refleja el efecto de los demás, sin autolimitarse) */
+function productsMatchingFiltersExcept(excludeField){
+  const q = searchQuery.trim().toLowerCase();
+  return PRODUCTS.filter(p => {
+    if (excludeField !== 'marca' && activeFilters.marca.size && !activeFilters.marca.has(p.marca)) return false;
+    if (excludeField !== 'categoria' && activeFilters.categoria.size && !activeFilters.categoria.has(p.categoria)) return false;
+    if (excludeField !== 'subcategoria' && activeFilters.subcategoria.size && !activeFilters.subcategoria.has(p.subcategoria)) return false;
+    if (excludeField !== 'bdf' && activeFilters.bdf.size && !activeFilters.bdf.has(p.bdf)) return false;
+    if (q){
+      const hay = (p.codigo + ' ' + p.descripcion + ' ' + p.marca).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function countsByField(products, field){
+  const counts = {};
+  products.forEach(p => { counts[p[field]] = (counts[p[field]] || 0) + 1; });
+  return counts;
+}
+
+/* Quita del estado cualquier selección que ya no tenga productos bajo los demás filtros activos */
+function pruneInvalidSelections(){
+  ['marca','categoria','subcategoria','bdf'].forEach(field => {
+    const relevant = productsMatchingFiltersExcept(field);
+    const validValues = new Set(relevant.map(p => p[field]));
+    Array.from(activeFilters[field]).forEach(v => { if (!validValues.has(v)) activeFilters[field].delete(v); });
+  });
+}
+
 function renderFilterGroup(containerId, field, searchQ){
   const el = $('#' + containerId);
-  const counts = countsBy(field);
+  const relevant = productsMatchingFiltersExcept(field);
+  const counts = countsByField(relevant, field);
   let entries = Object.entries(counts).sort((a,b) => b[1]-a[1]);
   if (searchQ) entries = entries.filter(([name]) => name.toLowerCase().includes(searchQ.toLowerCase()));
   el.innerHTML = entries.map(([name, count]) => {
-    const checked = activeFilters[field.replace('Sin categoría','categoria')] // no-op safeguard
-    const isChecked = activeFilters[fieldKeyFor(field)].has(name);
+    const isChecked = activeFilters[field].has(name);
     return `<label><input type="checkbox" data-field="${field}" value="${escAttr(name)}" ${isChecked?'checked':''}> ${name} <span class="fcount">${count}</span></label>`;
-  }).join('') || '<div style="color:var(--mut);font-size:12.5px">Sin resultados</div>';
-}
-function fieldKeyFor(field){
-  return field; // field ya coincide con las claves de activeFilters
+  }).join('') || '<div style="color:var(--mut);font-size:12.5px">Sin resultados con los filtros actuales</div>';
 }
 
 function renderAllFilterGroups(){
@@ -458,13 +487,15 @@ document.addEventListener('change', e => {
     const val = e.target.value;
     if (e.target.checked) activeFilters[field].add(val);
     else activeFilters[field].delete(val);
+    pruneInvalidSelections();
+    renderAllFilterGroups();
     renderTable();
   }
 });
 
 $('#searchMarca').addEventListener('input', e => { marcaSearchQuery = e.target.value; renderFilterGroup('groupMarca','marca',marcaSearchQuery); });
 $('#searchSub').addEventListener('input', e => { subSearchQuery = e.target.value; renderFilterGroup('groupSubcategoria','subcategoria',subSearchQuery); });
-$('#searchInput').addEventListener('input', e => { searchQuery = e.target.value; renderTable(); });
+$('#searchInput').addEventListener('input', e => { searchQuery = e.target.value; renderAllFilterGroups(); renderTable(); });
 $('#btnClearFilters').addEventListener('click', () => {
   activeFilters = { marca: new Set(), categoria: new Set(), subcategoria: new Set(), bdf: new Set() };
   searchQuery = ''; $('#searchInput').value = '';
