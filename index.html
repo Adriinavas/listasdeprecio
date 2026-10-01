@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portal de Precios — Mayoreo</title>
+<style>
+:root{
+  --navy:#16324a; --navy-dark:#0e2233; --navy-50:#eef2f6;
+  --gold:#c9902f; --gold-dark:#a8751f;
+  --bg:#f4f5f7; --card:#ffffff; --border:#e1e4e9; --border-strong:#cbd0d8;
+  --ink:#1b232e; --mut:#616b78; --rojo:#b3261e;
+  --radius:8px; --radius-pill:999px;
+  --shadow:0 1px 3px rgba(0,0,0,.08); --shadow-lg:0 8px 30px rgba(0,0,0,.18);
+  font-family:-apple-system,"Segoe UI",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.4}
+h1,h2,h3{margin:0}
+button{font-family:inherit}
+.hidden{display:none !important}
+
+/* ---- Cortina de acceso ---- */
+#gate{position:fixed;inset:0;background:var(--navy-dark);display:flex;align-items:center;justify-content:center;z-index:9999}
+.gate-box{background:var(--card);border-radius:var(--radius);padding:32px;width:320px;max-width:90vw;box-shadow:var(--shadow-lg);text-align:center}
+.gate-box h2{font-size:18px;margin-bottom:6px}
+.gate-box p{color:var(--mut);font-size:13px;margin:0 0 18px}
+.gate-box input{width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:15px;margin-bottom:10px}
+.gate-box button{width:100%;padding:10px;background:var(--navy);color:#fff;border:0;border-radius:var(--radius);font-weight:600;cursor:pointer}
+.gate-box button:hover{background:var(--navy-dark)}
+.gate-error{color:var(--rojo);font-size:13px;margin-top:8px;min-height:16px}
+
+/* ---- Header ---- */
+header{background:var(--navy);color:#fff;padding:16px 22px}
+header h1{font-size:20px;font-weight:700}
+header .sub{font-size:12.5px;opacity:.75;margin-top:2px}
+
+/* ---- Barra de cliente ---- */
+.clientBar{background:var(--card);border-bottom:1px solid var(--border);padding:12px 22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:sticky;top:0;z-index:15}
+.clientSearchWrap{position:relative;flex:1 1 320px;max-width:460px}
+.clientSearchWrap input{width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:14px}
+.clientResults{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid var(--border-strong);border-radius:var(--radius);box-shadow:var(--shadow-lg);max-height:280px;overflow-y:auto;z-index:20}
+.clientResults .cr-item{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border)}
+.clientResults .cr-item:last-child{border-bottom:0}
+.clientResults .cr-item:hover{background:var(--navy-50)}
+.cr-item .cr-name{font-weight:600;font-size:13.5px}
+.cr-item .cr-meta{font-size:12px;color:var(--mut)}
+.clientChip{display:none;align-items:center;gap:8px;background:var(--navy-50);border:1px solid var(--border-strong);border-radius:var(--radius-pill);padding:6px 6px 6px 14px;font-size:13.5px}
+.clientChip.on{display:flex}
+.clientChip b{font-weight:700}
+.clientChip button{background:#fff;border:1px solid var(--border-strong);border-radius:var(--radius-pill);padding:4px 10px;font-size:12.5px;cursor:pointer;color:var(--mut)}
+.clientChip button:hover{background:var(--navy-50)}
+.ivaNote{margin-left:auto;font-size:12px;color:var(--mut);white-space:nowrap}
+.noClientNote{font-size:13px;color:var(--gold-dark);font-weight:600}
+
+/* ---- Layout principal ---- */
+.layout{display:flex;align-items:flex-start;gap:0}
+.sidebar{width:260px;flex:none;background:var(--card);border-right:1px solid var(--border);padding:16px;height:calc(100vh - 110px);overflow-y:auto;position:sticky;top:110px}
+.sidebar h3{font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);margin:18px 0 8px}
+.sidebar h3:first-child{margin-top:0}
+.filterSearch{width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:13px;margin-bottom:8px}
+.filterGroup{max-height:170px;overflow-y:auto}
+.filterGroup label{display:flex;align-items:center;gap:7px;font-size:13px;padding:3px 0;cursor:pointer}
+.filterGroup input[type=checkbox]{flex:none}
+.filterGroup .fcount{color:var(--mut);font-size:11.5px;margin-left:auto}
+.clearFiltersLink{background:none;border:0;color:var(--navy);font-size:12.5px;font-weight:600;cursor:pointer;padding:0;margin-top:14px}
+.clearFiltersLink:hover{text-decoration:underline}
+
+.main{flex:1;min-width:0;padding:16px 22px 100px}
+.resultBar{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.resultBar .count{font-size:13px;color:var(--mut)}
+#searchInput{padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:14px;width:280px;max-width:60vw}
+
+table.cat{width:100%;border-collapse:collapse;background:var(--card);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+table.cat thead th{background:var(--navy-50);text-align:left;font-size:12.5px;color:var(--mut);font-weight:700;padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap}
+table.cat thead th.num{text-align:right}
+table.cat tbody td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:middle;font-size:13.5px}
+table.cat tbody tr:hover{background:var(--navy-50)}
+td.num{text-align:right}
+.prod-thumb{width:38px;height:38px;border-radius:6px;object-fit:contain;background:#fff;border:1px solid var(--border);padding:2px}
+.prod-thumb.noimg{display:flex;align-items:center;justify-content:center;color:var(--border-strong);font-size:16px}
+.prod-code{color:var(--mut);font-size:12.5px;white-space:nowrap}
+.prod-desc{font-weight:600}
+.chip{display:inline-block;font-size:11px;font-weight:700;color:var(--navy);background:var(--navy-50);border-radius:var(--radius-pill);padding:2px 8px;margin-top:3px}
+.chip.bdf{color:var(--gold-dark);background:#fbf1e1}
+.priceCell{font-weight:700;color:var(--rojo)}
+.priceCell.na{color:var(--mut);font-weight:400;font-size:12px}
+.qtybox{display:flex;align-items:center;gap:6px}
+.qtybox button{width:26px;height:26px;border-radius:var(--radius);border:1px solid var(--border-strong);background:#fff;cursor:pointer;font-size:15px}
+.qtybox input{width:44px;text-align:center;border:1px solid var(--border-strong);border-radius:var(--radius);padding:4px 2px;font-size:14px}
+.btn-add{background:var(--navy);border:0;border-radius:var(--radius);padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;color:#fff;white-space:nowrap}
+.btn-add:disabled{background:var(--border-strong);cursor:not-allowed}
+.btn-add:hover:not(:disabled){background:var(--navy-dark)}
+.actionsCell{display:flex;gap:8px;align-items:center;flex-wrap:nowrap}
+.empty{padding:50px;text-align:center;color:var(--mut)}
+
+/* ---- Lista flotante ---- */
+.fab-stack{position:fixed;right:20px;bottom:20px;z-index:30}
+.list-btn{background:var(--gold);color:#fff;border:0;border-radius:var(--radius-pill);padding:13px 22px;font-size:15px;font-weight:700;box-shadow:var(--shadow-lg);cursor:pointer;display:flex;align-items:center;gap:8px}
+.list-btn:hover{background:var(--gold-dark)}
+.list-btn .badge{background:#fff;color:var(--gold-dark);border-radius:var(--radius-pill);min-width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;padding:0 6px}
+
+.list-panel{position:fixed;top:0;right:-440px;width:420px;max-width:92vw;height:100%;background:var(--card);box-shadow:-4px 0 24px rgba(0,0,0,.18);z-index:40;transition:right .25s ease;display:flex;flex-direction:column}
+.list-panel.open{right:0}
+.list-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border)}
+.list-head h2{font-size:16px}
+.list-head button{background:none;border:0;font-size:18px;cursor:pointer;color:var(--mut)}
+.list-items{flex:1;overflow-y:auto;padding:10px 18px}
+.list-empty{padding:40px 0;text-align:center;color:var(--mut);font-size:13.5px}
+.list-item{display:flex;gap:10px;padding:12px 0;border-bottom:1px solid var(--border)}
+.list-item img{width:44px;height:44px;border-radius:6px;object-fit:contain;background:#fff;border:1px solid var(--border);flex:none}
+.li-text{flex:1;min-width:0}
+.li-text .li-desc{font-weight:600;font-size:13px}
+.li-text .li-code{color:var(--mut);font-size:12px}
+.li-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.li-price{font-weight:700;font-size:13px}
+.li-remove{background:none;border:0;color:var(--mut);cursor:pointer;font-size:13px}
+.li-remove:hover{color:var(--rojo)}
+.list-footer{border-top:1px solid var(--border);padding:16px 18px}
+.list-total{display:flex;justify-content:space-between;font-weight:700;font-size:16px;margin-bottom:12px}
+.btn-primary{width:100%;padding:12px;background:var(--gold);color:#fff;border:0;border-radius:var(--radius);font-weight:700;font-size:14.5px;cursor:pointer}
+.btn-primary:disabled{background:var(--border-strong);cursor:not-allowed}
+.btn-primary:hover:not(:disabled){background:var(--gold-dark)}
+
+/* ---- Toast ---- */
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:10px 18px;border-radius:var(--radius-pill);font-size:13.5px;opacity:0;pointer-events:none;transition:.25s;z-index:60}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(max-width:900px){
+  .sidebar{display:none}
+  .sidebar.open{display:block;position:fixed;top:0;left:0;bottom:0;width:82%;max-width:300px;z-index:50;height:100vh;box-shadow:2px 0 20px rgba(0,0,0,.2)}
+  .filterToggle{display:inline-flex !important}
+}
+.filterToggle{display:none;align-items:center;gap:6px;padding:8px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);background:#fff;font-weight:600;font-size:13px;cursor:pointer}
+.sidebarOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:45}
+.sidebarOverlay.open{display:block}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="gate-box">
+    <h2>Acceso restringido</h2>
+    <p>Portal de precios — solo personal autorizado</p>
+    <input type="password" id="gatePass" placeholder="Contraseña">
+    <button id="gateBtn">Entrar</button>
+    <div class="gate-error" id="gateError"></div>
+  </div>
+</div>
+
+<header>
+  <h1>Portal de Precios</h1>
+  <div class="sub">Catálogo completo — precios según lista asignada al cliente</div>
+</header>
+
+<div class="clientBar">
+  <button class="filterToggle" id="filterToggleBtn">☰ Filtros</button>
+  <div class="clientSearchWrap">
+    <input id="clientSearch" type="text" placeholder="Buscar cliente por nombre o código…" autocomplete="off">
+    <div class="clientResults hidden" id="clientResults"></div>
+  </div>
+  <div class="clientChip" id="clientChip">
+    <span><b id="clientChipName"></b> <span id="clientChipCode" style="color:var(--mut)"></span></span>
+    <button id="clientChipClear">Cambiar</button>
+  </div>
+  <span class="noClientNote" id="noClientNote">Selecciona un cliente para ver precios</span>
+  <span class="ivaNote">Precios no incluyen IVA</span>
+</div>
+
+<div class="sidebarOverlay" id="sidebarOverlay"></div>
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <h3>Marca</h3>
+    <input class="filterSearch" id="searchMarca" placeholder="Buscar marca…">
+    <div class="filterGroup" id="groupMarca"></div>
+
+    <h3>Categoría</h3>
+    <div class="filterGroup" id="groupCategoria"></div>
+
+    <h3>Subcategoría</h3>
+    <input class="filterSearch" id="searchSub" placeholder="Buscar subcategoría…">
+    <div class="filterGroup" id="groupSubcategoria"></div>
+
+    <h3>Clasificación BDF</h3>
+    <div class="filterGroup" id="groupBdf"></div>
+
+    <button class="clearFiltersLink" id="btnClearFilters">Borrar filtros</button>
+  </aside>
+
+  <main class="main">
+    <div class="resultBar">
+      <span class="count" id="resultCount">Cargando catálogo…</span>
+      <input id="searchInput" type="text" placeholder="Buscar por código, nombre o marca…">
+    </div>
+    <div id="tableWrap">
+      <table class="cat">
+        <thead><tr>
+          <th></th><th>Código</th><th>Producto</th><th class="num">Disponible</th><th class="num">Precio</th><th></th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<div class="fab-stack">
+  <button class="list-btn" id="listBtn">📋 Mi lista <span class="badge" id="listCount">0</span></button>
+</div>
+
+<div class="list-panel" id="listPanel">
+  <div class="list-head"><h2>Mi lista</h2><button id="closeList">✕</button></div>
+  <div class="list-items" id="listItems"><div class="list-empty">Aún no has agregado productos.</div></div>
+  <div class="list-footer">
+    <div class="list-total"><span>Total</span><span id="listTotal">$0.00</span></div>
+    <button class="btn-primary" id="btnExportExcel" disabled>Generar Excel</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+
+/* ======================= Cortina de acceso ======================= */
+const GATE_PASSWORD = 'Mayoreo2026*';
+(function gateInit(){
+  if (sessionStorage.getItem('portalUnlocked') === 'yes'){
+    $('#gate').style.display = 'none';
+    return;
+  }
+  $('#gateBtn').addEventListener('click', tryUnlock);
+  $('#gatePass').addEventListener('keydown', e => { if (e.key === 'Enter') tryUnlock(); });
+  function tryUnlock(){
+    if ($('#gatePass').value === GATE_PASSWORD){
+      sessionStorage.setItem('portalUnlocked', 'yes');
+      $('#gate').style.display = 'none';
+    } else {
+      $('#gateError').textContent = 'Contraseña incorrecta';
+    }
+  }
+})();
+
+/* ======================= Utilidades ======================= */
+function toast(msg){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove('on'), 2400);
+}
+function escAttr(s){ return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
+function money(n){ return '$ ' + (Number(n)||0).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+
+function parseCSV(text){
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++){
+    const c = text[i];
+    if (inQuotes){
+      if (c === '"'){
+        if (text[i+1] === '"'){ field += '"'; i++; }
+        else { inQuotes = false; }
+      } else field += c;
+    } else if (c === '"'){
+      inQuotes = true;
+    } else if (c === ','){
+      row.push(field); field = '';
+    } else if (c === '\r'){
+      /* ignorar */
+    } else if (c === '\n'){
+      row.push(field); rows.push(row); row = []; field = '';
+    } else field += c;
+  }
+  if (field.length > 0 || row.length > 0){ row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(c => c.trim() !== ''));
+}
+
+/* ======================= Fuentes de datos en vivo ======================= */
+const SPREADSHEET_ID = '1QT3MBkca4M9QEHFoZgjC4dVPZmCiqpj38R6YVLBSn6I';
+const ARTICULOS_URLS = [
+  'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/gviz/tq?tqx=out:csv&gid=655357259',
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vQzqvFIW3UbGsp1mpVC3Q7RZXF85d_T6O7cpEIOt5czUq3JmVqvhMXPdvQosD81ui2f36n5Y79jPdTx/pub?gid=655357259&single=true&output=csv'
+];
+const CLIENTES_URLS = [
+  'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/gviz/tq?tqx=out:csv&gid=814469810',
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vQzqvFIW3UbGsp1mpVC3Q7RZXF85d_T6O7cpEIOt5czUq3JmVqvhMXPdvQosD81ui2f36n5Y79jPdTx/pub?gid=814469810&single=true&output=csv'
+];
+const PHOTO_INDEX_URL = 'https://docs.google.com/spreadsheets/d/1biAtWEcnP0OpIwMV6gJzv3dmEl5veQQmM7ba3u95szY/gviz/tq?tqx=out:csv&gid=0';
+
+const PRICE_LIST_COLUMNS = ['ARAGUAB','BOLIVARCVM','CARABOBENA','EPA','FERREBOT','GRUPOPICO','LARAB','LICCIONI','LPARAGUA','LPLARA','LPMARGARITAB','LPMARGARITAD','MAYOREOB','MAYOREOD','MAYOREOEPA','MAYOREOL','PILOTO D','PORTAL PILOT','PORTALARAGUB','PORTALARAGUD','PORTALCONTB','PORTALCONTD','PORTALD','PORTALLARAB','PORTALLARAD'];
+
+let PRODUCTS = [];
+let CLIENTS = [];
+let DRIVE_IDS = {};
+let selectedClient = null; // {code, name, nivelPrecio}
+let list = {}; // codigo -> {qty}
+
+async function fetchFirstWorking(urls){
+  let lastErr = null;
+  for (const url of urls){
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      if (!text || text.length < 10) throw new Error('vacío');
+      return text;
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('No se pudo obtener ningún enlace');
+}
+
+function buildProducts(text){
+  const rows = parseCSV(text);
+  const header = rows[0].map(h => h.trim());
+  const idx = name => header.indexOf(name);
+  const iCodigo = idx('ARTICULO'), iDesc = idx('DESCRIPCION'), iDisp = idx('CANTIDAD_DISPONIBLE'),
+        iCat = idx('DESC_CLASIFICACION_1'), iSub = idx('DESC_CLASIFICACION_2'), iMarca = idx('DESC_CLASIFICACION_3'),
+        iBdf = idx('DESC_CLASIFICACION_4'), iEstado = idx('CLASIFICACION_6'), iInfaltable = idx('U_INFALTABLE');
+  const priceIdx = PRICE_LIST_COLUMNS.map(c => idx(c));
+
+  const out = [];
+  for (let r = 1; r < rows.length; r++){
+    const row = rows[r];
+    const codigo = (row[iCodigo] || '').trim();
+    if (!codigo) continue;
+    const estado = (row[iEstado] || '').trim();
+    if (estado !== 'P1') continue; // solo productos "Disponible para la venta"
+    const precios = {};
+    PRICE_LIST_COLUMNS.forEach((col, i) => {
+      const v = parseFloat(row[priceIdx[i]]);
+      precios[col] = Number.isFinite(v) ? v : null;
+    });
+    out.push({
+      codigo,
+      descripcion: (row[iDesc] || '').trim(),
+      disponible: parseFloat(row[iDisp]) || 0,
+      categoria: (row[iCat] || '').trim() || 'Sin categoría',
+      subcategoria: (row[iSub] || '').trim() || 'Sin subcategoría',
+      marca: (row[iMarca] || '').trim() || 'Sin marca',
+      bdf: (row[iBdf] || '').trim() || 'Sin clasificación',
+      infaltable: (row[iInfaltable] || '').trim() === 'SI',
+      precios
+    });
+  }
+  return out;
+}
+
+function buildClients(text){
+  const rows = parseCSV(text);
+  const header = rows[0].map(h => h.trim());
+  const idx = name => header.indexOf(name);
+  const iCode = idx('CLIENTE'), iName = idx('NOMBRE'), iNivel = idx('NIVEL_PRECIO'), iActivo = idx('ACTIVO');
+  const out = [];
+  for (let r = 1; r < rows.length; r++){
+    const row = rows[r];
+    const code = (row[iCode] || '').trim();
+    if (!code) continue;
+    if (iActivo !== -1 && (row[iActivo] || '').trim() !== 'S') continue;
+    out.push({
+      code,
+      name: (row[iName] || '').trim(),
+      nivelPrecio: (row[iNivel] || '').trim()
+    });
+  }
+  return out;
+}
+
+function buildDriveIndex(text){
+  const rows = parseCSV(text);
+  const header = rows[0].map(h => h.trim());
+  const iCodigo = header.indexOf('Nombre limpio') === -1 ? 1 : header.indexOf('Nombre limpio');
+  const iId = header.indexOf('ID') === -1 ? 3 : header.indexOf('ID');
+  const out = {};
+  for (let r = 1; r < rows.length; r++){
+    const row = rows[r];
+    const codigo = (row[iCodigo] || '').trim();
+    const id = (row[iId] || '').trim();
+    if (codigo && id && !(codigo in out)) out[codigo] = id;
+  }
+  return out;
+}
+
+function getPhotoSrc(codigo){
+  const id = DRIVE_IDS[codigo];
+  return id ? ('https://drive.google.com/thumbnail?id=' + id + '&sz=w200') : null;
+}
+function getPhotoSrcBig(codigo){
+  const id = DRIVE_IDS[codigo];
+  return id ? ('https://drive.google.com/thumbnail?id=' + id + '&sz=w600') : null;
+}
+
+/* ======================= Estado de filtros ======================= */
+let activeFilters = { marca: new Set(), categoria: new Set(), subcategoria: new Set(), bdf: new Set() };
+let searchQuery = '';
+let marcaSearchQuery = '';
+let subSearchQuery = '';
+
+function priceFor(product){
+  if (!selectedClient) return null;
+  const v = product.precios[selectedClient.nivelPrecio];
+  return (v == null) ? null : v;
+}
+
+function filteredProducts(){
+  const q = searchQuery.trim().toLowerCase();
+  return PRODUCTS.filter(p => {
+    if (activeFilters.marca.size && !activeFilters.marca.has(p.marca)) return false;
+    if (activeFilters.categoria.size && !activeFilters.categoria.has(p.categoria)) return false;
+    if (activeFilters.subcategoria.size && !activeFilters.subcategoria.has(p.subcategoria)) return false;
+    if (activeFilters.bdf.size && !activeFilters.bdf.has(p.bdf)) return false;
+    if (q){
+      const hay = (p.codigo + ' ' + p.descripcion + ' ' + p.marca).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function countsBy(field){
+  const counts = {};
+  PRODUCTS.forEach(p => { counts[p[field]] = (counts[p[field]] || 0) + 1; });
+  return counts;
+}
+
+function renderFilterGroup(containerId, field, searchQ){
+  const el = $('#' + containerId);
+  const counts = countsBy(field);
+  let entries = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+  if (searchQ) entries = entries.filter(([name]) => name.toLowerCase().includes(searchQ.toLowerCase()));
+  el.innerHTML = entries.map(([name, count]) => {
+    const checked = activeFilters[field.replace('Sin categoría','categoria')] // no-op safeguard
+    const isChecked = activeFilters[fieldKeyFor(field)].has(name);
+    return `<label><input type="checkbox" data-field="${field}" value="${escAttr(name)}" ${isChecked?'checked':''}> ${name} <span class="fcount">${count}</span></label>`;
+  }).join('') || '<div style="color:var(--mut);font-size:12.5px">Sin resultados</div>';
+}
+function fieldKeyFor(field){
+  return field; // field ya coincide con las claves de activeFilters
+}
+
+function renderAllFilterGroups(){
+  renderFilterGroup('groupMarca', 'marca', marcaSearchQuery);
+  renderFilterGroup('groupCategoria', 'categoria', '');
+  renderFilterGroup('groupSubcategoria', 'subcategoria', subSearchQuery);
+  renderFilterGroup('groupBdf', 'bdf', '');
+}
+
+document.addEventListener('change', e => {
+  if (e.target.matches('.filterGroup input[type=checkbox]')){
+    const field = e.target.dataset.field;
+    const val = e.target.value;
+    if (e.target.checked) activeFilters[field].add(val);
+    else activeFilters[field].delete(val);
+    renderTable();
+  }
+});
+
+$('#searchMarca').addEventListener('input', e => { marcaSearchQuery = e.target.value; renderFilterGroup('groupMarca','marca',marcaSearchQuery); });
+$('#searchSub').addEventListener('input', e => { subSearchQuery = e.target.value; renderFilterGroup('groupSubcategoria','subcategoria',subSearchQuery); });
+$('#searchInput').addEventListener('input', e => { searchQuery = e.target.value; renderTable(); });
+$('#btnClearFilters').addEventListener('click', () => {
+  activeFilters = { marca: new Set(), categoria: new Set(), subcategoria: new Set(), bdf: new Set() };
+  searchQuery = ''; $('#searchInput').value = '';
+  marcaSearchQuery = ''; $('#searchMarca').value = '';
+  subSearchQuery = ''; $('#searchSub').value = '';
+  renderAllFilterGroups();
+  renderTable();
+});
+
+/* ======================= Tabla de productos ======================= */
+const MAX_RENDER = 300;
+function renderTable(){
+  const filtered = filteredProducts();
+  $('#resultCount').textContent = filtered.length + ' de ' + PRODUCTS.length + ' productos';
+  const toRender = filtered.slice(0, MAX_RENDER);
+  const tbody = $('#tbody');
+  if (toRender.length === 0){
+    tbody.innerHTML = '<tr><td colspan="6"><div class="empty">No se encontraron productos con estos filtros.</div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = toRender.map(rowHtml).join('') +
+    (filtered.length > MAX_RENDER ? `<tr><td colspan="6"><div class="empty">Mostrando los primeros ${MAX_RENDER} de ${filtered.length} resultados. Afina la búsqueda o los filtros para ver más.</div></td></tr>` : '');
+}
+
+function rowHtml(p){
+  const src = getPhotoSrc(p.codigo);
+  const thumb = src
+    ? `<img class="prod-thumb" src="${src}" loading="lazy" alt="${escAttr(p.codigo)}">`
+    : `<div class="prod-thumb noimg">—</div>`;
+  const price = priceFor(p);
+  const priceHtml = !selectedClient
+    ? `<span class="priceCell na">Selecciona un cliente</span>`
+    : (price == null ? `<span class="priceCell na">No disponible</span>` : `<span class="priceCell">${money(price)}</span>`);
+  const qty = list[p.codigo] ? list[p.codigo].qty : 0;
+  const disabled = (!selectedClient || price == null) ? 'disabled' : '';
+  const actionHtml = qty > 0
+    ? `<div class="qtybox">
+        <button data-act="dec" data-codigo="${escAttr(p.codigo)}">−</button>
+        <input type="text" inputmode="numeric" value="${qty}" data-codigo="${escAttr(p.codigo)}" class="qtyinput">
+        <button data-act="inc" data-codigo="${escAttr(p.codigo)}">+</button>
+       </div>`
+    : `<button class="btn-add" data-codigo="${escAttr(p.codigo)}" ${disabled}>Agregar</button>`;
+  return `<tr data-codigo="${escAttr(p.codigo)}">
+    <td>${thumb}</td>
+    <td class="prod-code">${p.codigo}</td>
+    <td><div class="prod-desc">${p.descripcion}</div><span class="chip">${p.marca}</span> <span class="chip bdf">${p.bdf}</span></td>
+    <td class="num">${p.disponible.toLocaleString('es-VE')}</td>
+    <td class="num">${priceHtml}</td>
+    <td><div class="actionsCell">${actionHtml}</div></td>
+  </tr>`;
+}
+
+function setQty(codigo, qty){
+  const p = PRODUCTS.find(x => x.codigo === codigo);
+  if (!p) return;
+  qty = Math.max(0, Math.floor(qty) || 0);
+  if (qty === 0) delete list[codigo];
+  else list[codigo] = { qty };
+  updateListUI();
+  const row = document.querySelector(`tr[data-codigo="${CSS.escape(codigo)}"]`);
+  if (row) row.outerHTML = rowHtml(p);
+}
+
+document.addEventListener('click', e => {
+  const addBtn = e.target.closest('.btn-add');
+  if (addBtn && !addBtn.disabled){
+    setQty(addBtn.dataset.codigo, 1);
+    toast('Agregado a la lista ✓');
+    return;
+  }
+  const stepBtn = e.target.closest('.qtybox button[data-act]');
+  if (stepBtn){
+    const codigo = stepBtn.dataset.codigo;
+    const cur = list[codigo] ? list[codigo].qty : 0;
+    setQty(codigo, stepBtn.dataset.act === 'inc' ? cur + 1 : cur - 1);
+  }
+  const removeBtn = e.target.closest('.li-remove');
+  if (removeBtn) setQty(removeBtn.dataset.codigo, 0);
+});
+document.addEventListener('change', e => {
+  if (e.target.classList.contains('qtyinput')) setQty(e.target.dataset.codigo, parseInt(e.target.value, 10));
+});
+
+/* ======================= Panel "Mi lista" ======================= */
+function listLines(){
+  return Object.keys(list).map(codigo => {
+    const p = PRODUCTS.find(x => x.codigo === codigo);
+    if (!p) return null;
+    const qty = list[codigo].qty;
+    const price = priceFor(p) || 0;
+    return { codigo, desc: p.descripcion, marca: p.marca, qty, price, subtotal: price * qty };
+  }).filter(Boolean);
+}
+
+function updateListUI(){
+  const lines = listLines();
+  const count = lines.reduce((a,l) => a + l.qty, 0);
+  const total = lines.reduce((a,l) => a + l.subtotal, 0);
+  $('#listCount').textContent = count;
+  $('#listTotal').textContent = money(total);
+  $('#btnExportExcel').disabled = lines.length === 0;
+
+  const el = $('#listItems');
+  if (lines.length === 0){
+    el.innerHTML = '<div class="list-empty">Aún no has agregado productos.</div>';
+    return;
+  }
+  el.innerHTML = lines.map(l => {
+    const src = getPhotoSrc(l.codigo);
+    return `<div class="list-item">
+      <img src="${src || ''}" ${src?'':'style="display:flex;align-items:center;justify-content:center"'} alt="">
+      <div class="li-text">
+        <div class="li-desc">${l.desc}</div>
+        <div class="li-code">${l.codigo} · ${l.marca}</div>
+      </div>
+      <div class="li-right">
+        <span class="li-price">${money(l.subtotal)}</span>
+        <button class="li-remove" data-codigo="${escAttr(l.codigo)}">Quitar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+const listPanel = $('#listPanel');
+$('#listBtn').addEventListener('click', () => listPanel.classList.add('open'));
+$('#closeList').addEventListener('click', () => listPanel.classList.remove('open'));
+
+/* ======================= Selección de cliente ======================= */
+const clientSearchEl = $('#clientSearch');
+const clientResultsEl = $('#clientResults');
+clientSearchEl.addEventListener('input', () => {
+  const q = clientSearchEl.value.trim().toLowerCase();
+  if (q.length < 2){ clientResultsEl.classList.add('hidden'); return; }
+  const matches = CLIENTS.filter(c => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)).slice(0, 40);
+  if (matches.length === 0){
+    clientResultsEl.innerHTML = '<div class="cr-item" style="color:var(--mut)">Sin resultados</div>';
+  } else {
+    clientResultsEl.innerHTML = matches.map(c =>
+      `<div class="cr-item" data-code="${escAttr(c.code)}"><div class="cr-name">${c.name}</div><div class="cr-meta">${c.code} · Lista: ${c.nivelPrecio || '—'}</div></div>`
+    ).join('');
+  }
+  clientResultsEl.classList.remove('hidden');
+});
+clientResultsEl.addEventListener('click', e => {
+  const item = e.target.closest('.cr-item[data-code]');
+  if (!item) return;
+  const c = CLIENTS.find(x => x.code === item.dataset.code);
+  if (!c) return;
+  selectClient(c);
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('.clientSearchWrap')) clientResultsEl.classList.add('hidden');
+});
+
+function selectClient(c){
+  selectedClient = c;
+  $('#clientChipName').textContent = c.name;
+  $('#clientChipCode').textContent = '(' + c.code + ')';
+  $('#clientChip').classList.add('on');
+  $('#noClientNote').classList.add('hidden');
+  clientSearchEl.value = '';
+  clientResultsEl.classList.add('hidden');
+  clientSearchEl.closest('.clientSearchWrap').style.display = 'none';
+  renderTable();
+  updateListUI();
+}
+$('#clientChipClear').addEventListener('click', () => {
+  selectedClient = null;
+  $('#clientChip').classList.remove('on');
+  $('#noClientNote').classList.remove('hidden');
+  clientSearchEl.closest('.clientSearchWrap').style.display = '';
+  list = {};
+  renderTable();
+  updateListUI();
+});
+
+/* ======================= Filtro móvil ======================= */
+$('#filterToggleBtn').addEventListener('click', () => {
+  $('#sidebar').classList.add('open');
+  $('#sidebarOverlay').classList.add('open');
+});
+$('#sidebarOverlay').addEventListener('click', () => {
+  $('#sidebar').classList.remove('open');
+  $('#sidebarOverlay').classList.remove('open');
+});
+
+/* ======================= Exportar a Excel ======================= */
+async function urlToBase64(url){
+  try {
+    const proxied = 'https://images.weserv.nl/?url=' + encodeURIComponent(url.replace(/^https?:\/\//, ''));
+    const res = await fetch(proxied);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) { return null; }
+}
+
+$('#btnExportExcel').addEventListener('click', async () => {
+  const lines = listLines();
+  if (!lines.length) return;
+  const btn = $('#btnExportExcel');
+  const original = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Generando...';
+  try {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Lista de precios');
+    ws.columns = [
+      { header: 'Foto', key: 'foto', width: 14 },
+      { header: 'Código', key: 'codigo', width: 16 },
+      { header: 'Descripción', key: 'desc', width: 42 },
+      { header: 'Marca', key: 'marca', width: 18 },
+      { header: 'Precio', key: 'precio', width: 14 },
+      { header: 'Cantidad', key: 'cantidad', width: 12 }
+    ];
+    ws.getRow(1).font = { bold: true };
+    if (selectedClient){
+      ws.insertRow(1, ['Cliente:', selectedClient.name + ' (' + selectedClient.code + ')']);
+      ws.insertRow(2, []);
+      ws.getRow(1).font = { bold: true };
+    }
+    const headerRowIdx = selectedClient ? 3 : 1;
+    ws.getRow(headerRowIdx).font = { bold: true };
+
+    for (let i = 0; i < lines.length; i++){
+      const l = lines[i];
+      const rowIdx = headerRowIdx + 1 + i;
+      ws.getRow(rowIdx).values = { codigo: l.codigo, desc: l.desc, marca: l.marca, precio: l.price, cantidad: l.qty };
+      ws.getRow(rowIdx).height = 50;
+
+      const photoUrl = getPhotoSrcBig(l.codigo);
+      if (photoUrl){
+        const dataUrl = await urlToBase64(photoUrl);
+        if (dataUrl){
+          const ext = dataUrl.startsWith('data:image/png') ? 'png' : 'jpeg';
+          const imgId = wb.addImage({ base64: dataUrl, extension: ext });
+          ws.addImage(imgId, {
+            tl: { col: 0.15, row: rowIdx - 1 + 0.1 },
+            ext: { width: 46, height: 46 }
+          });
+        }
+      }
+    }
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const safeName = (selectedClient ? selectedClient.name : 'lista').replace(/[^a-z0-9]+/gi,'_').slice(0,40);
+    a.download = `Lista_precios_${safeName}.xlsx`;
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('Excel generado ✓');
+  } catch (err){
+    console.error('Error generando Excel:', err);
+    alert('Ocurrió un error generando el Excel. Intenta de nuevo.');
+  } finally {
+    btn.disabled = false; btn.textContent = original;
+  }
+});
+
+/* ======================= Carga inicial ======================= */
+async function init(){
+  try {
+    const [articulosCsv, clientesCsv] = await Promise.all([
+      fetchFirstWorking(ARTICULOS_URLS),
+      fetchFirstWorking(CLIENTES_URLS)
+    ]);
+    PRODUCTS = buildProducts(articulosCsv);
+    CLIENTS = buildClients(clientesCsv);
+    renderAllFilterGroups();
+    renderTable();
+  } catch (err){
+    console.error('Error cargando catálogo/clientes:', err);
+    $('#resultCount').textContent = 'No se pudo cargar el catálogo. Verifica tu conexión y recarga la página.';
+  }
+
+  try {
+    const photoCsv = await fetchFirstWorking([PHOTO_INDEX_URL]);
+    DRIVE_IDS = buildDriveIndex(photoCsv);
+    renderTable();
+  } catch (err){
+    console.error('No se pudo cargar el índice de fotos:', err);
+  }
+}
+init();
+</script>
+</body>
+</html>
