@@ -91,6 +91,8 @@ td.num{text-align:right}
 .btn-add{background:var(--navy);border:0;border-radius:var(--radius);padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;color:#fff;white-space:nowrap}
 .btn-add:disabled{background:var(--border-strong);cursor:not-allowed}
 .btn-add:hover:not(:disabled){background:var(--navy-dark)}
+.selectCell{width:34px;text-align:center}
+.selectCell input, th.selectCell input{cursor:pointer}
 .actionsCell{display:flex;gap:8px;align-items:center;flex-wrap:nowrap}
 .empty{padding:50px;text-align:center;color:var(--mut)}
 
@@ -190,12 +192,15 @@ td.num{text-align:right}
   <main class="main">
     <div class="resultBar">
       <span class="count" id="resultCount">Cargando catálogo…</span>
-      <input id="searchInput" type="text" placeholder="Buscar por código, nombre o marca…">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="btn-add" id="btnAddAllSelected" disabled>Agregar todo (0)</button>
+        <input id="searchInput" type="text" placeholder="Buscar por código, nombre o marca…">
+      </div>
     </div>
     <div id="tableWrap">
       <table class="cat">
         <thead><tr>
-          <th></th><th>Código</th><th>Producto</th><th class="num">Disponible</th><th class="num">Precio</th><th></th>
+          <th class="selectCell"><input type="checkbox" id="selectAllCheckbox" title="Seleccionar todos los resultados filtrados"></th><th></th><th>Código</th><th>Producto</th><th class="num">Disponible</th><th class="num">Precio</th><th></th>
         </tr></thead>
         <tbody id="tbody"></tbody>
       </table>
@@ -317,7 +322,7 @@ function buildProducts(text){
   const idx = name => header.indexOf(name);
   const iCodigo = idx('ARTICULO'), iDesc = idx('DESCRIPCION'), iDisp = idx('CANTIDAD_DISPONIBLE'),
         iCat = idx('DESC_CLASIFICACION_1'), iSub = idx('DESC_CLASIFICACION_2'), iMarca = idx('DESC_CLASIFICACION_3'),
-        iBdf = idx('DESC_CLASIFICACION_4'), iEstado = idx('CLASIFICACION_6'), iInfaltable = idx('U_INFALTABLE');
+        iBdf = idx('DESC_CLASIFICACION_4'), iEstado = idx('CLASIFICACION_6'), iInfaltable = idx('U_INFALTABLE'), iFactor = idx('FACTOR_VENTA');
   const priceIdx = PRICE_LIST_COLUMNS.map(c => idx(c));
 
   const out = [];
@@ -341,6 +346,7 @@ function buildProducts(text){
       marca: (row[iMarca] || '').trim() || 'Sin marca',
       bdf: (row[iBdf] || '').trim() || 'Sin clasificación',
       infaltable: (row[iInfaltable] || '').trim() === 'SI',
+      factorVenta: Math.max(1, Math.round(parseFloat(row[iFactor])) || 1),
       precios
     });
   }
@@ -494,17 +500,19 @@ function rowHtml(p){
     : (price == null ? `<span class="priceCell na">No disponible</span>` : `<span class="priceCell">${money(price)}</span>`);
   const qty = list[p.codigo] ? list[p.codigo].qty : 0;
   const disabled = (!selectedClient || price == null) ? 'disabled' : '';
+  const checked = selectedCodes.has(p.codigo) ? 'checked' : '';
   const actionHtml = qty > 0
     ? `<div class="qtybox">
         <button data-act="dec" data-codigo="${escAttr(p.codigo)}">−</button>
         <input type="text" inputmode="numeric" value="${qty}" data-codigo="${escAttr(p.codigo)}" class="qtyinput">
         <button data-act="inc" data-codigo="${escAttr(p.codigo)}">+</button>
        </div>`
-    : `<button class="btn-add" data-codigo="${escAttr(p.codigo)}" ${disabled}>Agregar</button>`;
+    : `<button class="btn-add" data-codigo="${escAttr(p.codigo)}" data-factor="${p.factorVenta}" ${disabled}>Agregar</button>`;
   return `<tr data-codigo="${escAttr(p.codigo)}">
+    <td class="selectCell"><input type="checkbox" class="rowCheckbox" data-codigo="${escAttr(p.codigo)}" ${checked}></td>
     <td>${thumb}</td>
     <td class="prod-code">${p.codigo}</td>
-    <td><div class="prod-desc">${p.descripcion}</div><span class="chip">${p.marca}</span> <span class="chip bdf">${p.bdf}</span></td>
+    <td><div class="prod-desc">${p.descripcion}</div><span class="chip">${p.marca}</span> <span class="chip bdf">${p.bdf}</span>${p.factorVenta > 1 ? ` <span class="chip" style="color:var(--mut);background:transparent;border:1px solid var(--border-strong)">Empaque x${p.factorVenta}</span>` : ''}</td>
     <td class="num">${p.disponible.toLocaleString('es-VE')}</td>
     <td class="num">${priceHtml}</td>
     <td><div class="actionsCell">${actionHtml}</div></td>
@@ -524,8 +532,9 @@ function setQty(codigo, qty){
 
 document.addEventListener('click', e => {
   const addBtn = e.target.closest('.btn-add');
-  if (addBtn && !addBtn.disabled){
-    setQty(addBtn.dataset.codigo, 1);
+  if (addBtn && addBtn.id !== 'btnAddAllSelected' && !addBtn.disabled){
+    const factor = parseInt(addBtn.dataset.factor, 10) || 1;
+    setQty(addBtn.dataset.codigo, factor);
     toast('Agregado a la lista ✓');
     return;
   }
@@ -540,6 +549,51 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('change', e => {
   if (e.target.classList.contains('qtyinput')) setQty(e.target.dataset.codigo, parseInt(e.target.value, 10));
+});
+
+/* ======================= Selección múltiple ======================= */
+let selectedCodes = new Set();
+
+function updateBulkBar(){
+  const btn = $('#btnAddAllSelected');
+  btn.textContent = `Agregar todo (${selectedCodes.size})`;
+  btn.disabled = selectedCodes.size === 0 || !selectedClient;
+}
+
+document.addEventListener('change', e => {
+  if (e.target.classList.contains('rowCheckbox')){
+    const codigo = e.target.dataset.codigo;
+    if (e.target.checked) selectedCodes.add(codigo);
+    else selectedCodes.delete(codigo);
+    updateBulkBar();
+  }
+  if (e.target.id === 'selectAllCheckbox'){
+    const filtered = filteredProducts();
+    if (e.target.checked) filtered.forEach(p => selectedCodes.add(p.codigo));
+    else filtered.forEach(p => selectedCodes.delete(p.codigo));
+    renderTable();
+    updateBulkBar();
+  }
+});
+
+$('#btnAddAllSelected').addEventListener('click', () => {
+  if (!selectedClient){ toast('Selecciona un cliente primero'); return; }
+  let added = 0, skipped = 0;
+  selectedCodes.forEach(codigo => {
+    const p = PRODUCTS.find(x => x.codigo === codigo);
+    if (!p) return;
+    const price = priceFor(p);
+    if (price == null){ skipped++; return; }
+    const cur = list[codigo] ? list[codigo].qty : 0;
+    const qty = cur > 0 ? cur + p.factorVenta : p.factorVenta;
+    list[codigo] = { qty };
+    added++;
+  });
+  selectedCodes.clear();
+  updateListUI();
+  renderTable();
+  updateBulkBar();
+  toast(skipped > 0 ? `${added} productos agregados, ${skipped} sin precio disponible` : `${added} productos agregados ✓`);
 });
 
 /* ======================= Panel "Mi lista" ======================= */
@@ -624,6 +678,7 @@ function selectClient(c){
   clientSearchEl.closest('.clientSearchWrap').style.display = 'none';
   renderTable();
   updateListUI();
+  updateBulkBar();
 }
 $('#clientChipClear').addEventListener('click', () => {
   selectedClient = null;
@@ -631,8 +686,10 @@ $('#clientChipClear').addEventListener('click', () => {
   $('#noClientNote').classList.remove('hidden');
   clientSearchEl.closest('.clientSearchWrap').style.display = '';
   list = {};
+  selectedCodes.clear();
   renderTable();
   updateListUI();
+  updateBulkBar();
 });
 
 /* ======================= Filtro móvil ======================= */
