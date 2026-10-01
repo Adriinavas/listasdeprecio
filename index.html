@@ -83,6 +83,11 @@ td.num{text-align:right}
 .prod-desc{font-weight:600}
 .chip{display:inline-block;font-size:11px;font-weight:700;color:var(--navy);background:var(--navy-50);border-radius:var(--radius-pill);padding:2px 8px;margin-top:3px}
 .chip.bdf{color:var(--gold-dark);background:#fbf1e1}
+.promoChip{position:relative;color:#3730a3;background:#eef0fd;cursor:help}
+.promoBubble{display:none;position:absolute;left:0;bottom:calc(100% + 8px);z-index:25;width:260px;max-width:60vw;
+  background:var(--card);color:var(--ink);font-size:12.5px;font-weight:400;line-height:1.4;text-align:left;
+  padding:10px 12px;border-radius:var(--radius);box-shadow:var(--shadow-lg);border:1px solid var(--border-strong);white-space:normal}
+.promoChip:hover .promoBubble, .promoChip:focus .promoBubble{display:block}
 .priceCell{font-weight:700;color:var(--rojo)}
 .priceCell.na{color:var(--mut);font-weight:400;font-size:12px}
 .qtybox{display:flex;align-items:center;gap:6px}
@@ -320,9 +325,11 @@ function buildProducts(text){
   const rows = parseCSV(text);
   const header = rows[0].map(h => h.trim());
   const idx = name => header.indexOf(name);
+  const idxAny = (...names) => { for (const n of names){ const i = idx(n); if (i !== -1) return i; } return -1; };
   const iCodigo = idx('ARTICULO'), iDesc = idx('DESCRIPCION'), iDisp = idx('CANTIDAD_DISPONIBLE'),
         iCat = idx('DESC_CLASIFICACION_1'), iSub = idx('DESC_CLASIFICACION_2'), iMarca = idx('DESC_CLASIFICACION_3'),
-        iBdf = idx('DESC_CLASIFICACION_4'), iEstado = idx('CLASIFICACION_6'), iInfaltable = idx('U_INFALTABLE'), iFactor = idx('FACTOR_VENTA');
+        iBdf = idx('DESC_CLASIFICACION_4'), iEstado = idx('CLASIFICACION_6'), iInfaltable = idx('U_INFALTABLE'), iFactor = idx('FACTOR_VENTA'),
+        iPromo = idxAny('Promoción', 'Promocion', 'PROMOCION', 'PROMOCIÓN', 'Promo', 'PROMO');
   const priceIdx = PRICE_LIST_COLUMNS.map(c => idx(c));
 
   const out = [];
@@ -349,6 +356,7 @@ function buildProducts(text){
       bdf: (row[iBdf] || '').trim() || 'Sin clasificación',
       infaltable: (row[iInfaltable] || '').trim() === 'SI',
       factorVenta: Math.max(1, Math.round(parseFloat(row[iFactor])) || 1),
+      promocion: iPromo === -1 ? '' : (row[iPromo] || '').trim(),
       precios
     });
   }
@@ -545,7 +553,7 @@ function rowHtml(p){
     <td class="selectCell"><input type="checkbox" class="rowCheckbox" data-codigo="${escAttr(p.codigo)}" ${checked}></td>
     <td>${thumb}</td>
     <td class="prod-code">${p.codigo}</td>
-    <td><div class="prod-desc">${p.descripcion}</div><span class="chip">${p.marca}</span> <span class="chip bdf">${p.bdf}</span>${p.factorVenta > 1 ? ` <span class="chip" style="color:var(--mut);background:transparent;border:1px solid var(--border-strong)">Empaque x${p.factorVenta}</span>` : ''}</td>
+    <td><div class="prod-desc">${p.descripcion}</div><span class="chip">${p.marca}</span> <span class="chip bdf">${p.bdf}</span>${p.factorVenta > 1 ? ` <span class="chip" style="color:var(--mut);background:transparent;border:1px solid var(--border-strong)">Empaque x${p.factorVenta}</span>` : ''}${p.promocion ? ` <span class="chip promoChip" tabindex="0">Promoción<span class="promoBubble">${p.promocion}</span></span>` : ''}</td>
     <td class="num">${p.disponible.toLocaleString('es-VE')}</td>
     <td class="num">${priceHtml}</td>
     <td><div class="actionsCell">${actionHtml}</div></td>
@@ -636,7 +644,7 @@ function listLines(){
     if (!p) return null;
     const qty = list[codigo].qty;
     const price = priceFor(p) || 0;
-    return { codigo, desc: p.descripcion, marca: p.marca, qty, price, subtotal: price * qty, factorVenta: p.factorVenta };
+    return { codigo, desc: p.descripcion, marca: p.marca, qty, price, subtotal: price * qty, factorVenta: p.factorVenta, promocion: p.promocion || '' };
   }).filter(Boolean);
 }
 
@@ -767,7 +775,8 @@ $('#btnExportExcel').addEventListener('click', async () => {
       { header: 'Marca', key: 'marca', width: 18 },
       { header: 'Precio', key: 'precio', width: 14 },
       { header: 'Cantidad empaque', key: 'empaque', width: 16 },
-      { header: 'Cantidad pedido', key: 'pedido', width: 16 }
+      { header: 'Cantidad pedido', key: 'pedido', width: 16 },
+      { header: 'Promoción', key: 'promocion', width: 36 }
     ];
     ws.getRow(1).font = { bold: true };
     if (selectedClient){
@@ -781,7 +790,7 @@ $('#btnExportExcel').addEventListener('click', async () => {
     for (let i = 0; i < lines.length; i++){
       const l = lines[i];
       const rowIdx = headerRowIdx + 1 + i;
-      ws.getRow(rowIdx).values = { codigo: l.codigo, desc: l.desc, marca: l.marca, precio: l.price, empaque: l.factorVenta, pedido: null };
+      ws.getRow(rowIdx).values = { codigo: l.codigo, desc: l.desc, marca: l.marca, precio: l.price, empaque: l.factorVenta, pedido: null, promocion: l.promocion };
       ws.getRow(rowIdx).height = 50;
 
       const photoUrl = getPhotoSrcBig(l.codigo);
