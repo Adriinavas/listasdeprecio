@@ -769,7 +769,7 @@ $('#btnExportExcel').addEventListener('click', async () => {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Lista de precios');
     ws.columns = [
-      { header: 'Foto', key: 'foto', width: 14 },
+      { header: 'Foto', key: 'foto', width: 24 },
       { header: 'Código', key: 'codigo', width: 16 },
       { header: 'Descripción', key: 'desc', width: 42 },
       { header: 'Marca', key: 'marca', width: 18 },
@@ -791,7 +791,7 @@ $('#btnExportExcel').addEventListener('click', async () => {
       const l = lines[i];
       const rowIdx = headerRowIdx + 1 + i;
       ws.getRow(rowIdx).values = { codigo: l.codigo, desc: l.desc, marca: l.marca, precio: l.price, empaque: l.factorVenta, pedido: null, promocion: l.promocion };
-      ws.getRow(rowIdx).height = 50;
+      ws.getRow(rowIdx).height = 120;
 
       const photoUrl = getPhotoSrcBig(l.codigo);
       if (photoUrl){
