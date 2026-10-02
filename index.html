@@ -206,7 +206,7 @@ td.num{text-align:right}
     <div id="tableWrap">
       <table class="cat">
         <thead><tr>
-          <th class="selectCell"><input type="checkbox" id="selectAllCheckbox" title="Seleccionar todos los resultados filtrados"></th><th></th><th>Código</th><th>Producto</th><th class="num">Disponible</th><th class="num">Precio</th><th></th>
+          <th class="selectCell"><input type="checkbox" id="selectAllCheckbox" title="Seleccionar todos los resultados filtrados"></th><th></th><th>Código</th><th>Producto</th><th class="num">Disponible</th><th class="num">Precio unitario</th><th class="num">Precio empaque</th><th></th>
         </tr></thead>
         <tbody id="tbody"></tbody>
       </table>
@@ -529,11 +529,11 @@ function renderTable(){
   const toRender = filtered.slice(0, MAX_RENDER);
   const tbody = $('#tbody');
   if (toRender.length === 0){
-    tbody.innerHTML = '<tr><td colspan="6"><div class="empty">No se encontraron productos con estos filtros.</div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty">No se encontraron productos con estos filtros.</div></td></tr>';
     return;
   }
   tbody.innerHTML = toRender.map(rowHtml).join('') +
-    (filtered.length > MAX_RENDER ? `<tr><td colspan="6"><div class="empty">Mostrando los primeros ${MAX_RENDER} de ${filtered.length} resultados. Afina la búsqueda o los filtros para ver más.</div></td></tr>` : '');
+    (filtered.length > MAX_RENDER ? `<tr><td colspan="7"><div class="empty">Mostrando los primeros ${MAX_RENDER} de ${filtered.length} resultados. Afina la búsqueda o los filtros para ver más.</div></td></tr>` : '');
 }
 
 function rowHtml(p){
@@ -545,6 +545,11 @@ function rowHtml(p){
   const priceHtml = !selectedClient
     ? `<span class="priceCell na">Selecciona un cliente</span>`
     : (price == null ? `<span class="priceCell na">No disponible</span>` : `<span class="priceCell">${money(price)}</span>`);
+  // Precio de empaque provisional: precio unitario × unidades del empaque (sin descuento),
+  // mientras no conectemos la base de descuentos por volumen.
+  const priceEmpaqueHtml = !selectedClient
+    ? `<span class="priceCell na">—</span>`
+    : (price == null ? `<span class="priceCell na">—</span>` : `<span class="priceCell">${money(price * p.factorVenta)}</span>`);
   const qty = list[p.codigo] ? list[p.codigo].qty : 0;
   const disabled = (!selectedClient || price == null) ? 'disabled' : '';
   const checked = selectedCodes.has(p.codigo) ? 'checked' : '';
@@ -562,6 +567,7 @@ function rowHtml(p){
     <td><div class="prod-desc">${p.descripcion}</div><span class="chip">${p.marca}</span> <span class="chip bdf">${p.bdf}</span>${p.factorVenta > 1 ? ` <span class="chip" style="color:var(--mut);background:transparent;border:1px solid var(--border-strong)">Empaque x${p.factorVenta}</span>` : ''}${p.promocion ? ` <span class="chip promoChip" tabindex="0">Promoción<span class="promoBubble">${p.promocion}</span></span>` : ''}</td>
     <td class="num">${p.disponible.toLocaleString('es-VE')}</td>
     <td class="num">${priceHtml}</td>
+    <td class="num">${priceEmpaqueHtml}</td>
     <td><div class="actionsCell">${actionHtml}</div></td>
   </tr>`;
 }
@@ -650,7 +656,10 @@ function listLines(){
     if (!p) return null;
     const qty = list[codigo].qty;
     const price = priceFor(p) || 0;
-    return { codigo, desc: p.descripcion, marca: p.marca, qty, price, subtotal: price * qty, factorVenta: p.factorVenta, promocion: p.promocion || '' };
+    // Precio de empaque provisional: precio unitario × unidades del empaque (sin descuento),
+    // mientras no conectemos la base de descuentos por volumen.
+    const precioEmpaque = price * p.factorVenta;
+    return { codigo, desc: p.descripcion, marca: p.marca, qty, price, precioEmpaque, subtotal: price * qty, factorVenta: p.factorVenta, promocion: p.promocion || '' };
   }).filter(Boolean);
 }
 
@@ -781,7 +790,8 @@ $('#btnExportExcel').addEventListener('click', async () => {
       { header: 'Código', key: 'codigo', width: 16 },
       { header: 'Descripción', key: 'desc', width: 42 },
       { header: 'Marca', key: 'marca', width: 18 },
-      { header: 'Precio', key: 'precio', width: 14 },
+      { header: 'Precio unitario', key: 'precio', width: 14 },
+      { header: 'Precio empaque', key: 'precioEmpaque', width: 15 },
       { header: 'Cantidad empaque', key: 'empaque', width: 16 },
       { header: 'Cantidad pedido', key: 'pedido', width: 16 },
       { header: 'Promoción', key: 'promocion', width: 36 }
@@ -798,7 +808,7 @@ $('#btnExportExcel').addEventListener('click', async () => {
     for (let i = 0; i < lines.length; i++){
       const l = lines[i];
       const rowIdx = headerRowIdx + 1 + i;
-      ws.getRow(rowIdx).values = { codigo: l.codigo, desc: l.desc, marca: l.marca, precio: l.price, empaque: l.factorVenta, pedido: null, promocion: l.promocion };
+      ws.getRow(rowIdx).values = { codigo: l.codigo, desc: l.desc, marca: l.marca, precio: l.price, precioEmpaque: l.precioEmpaque, empaque: l.factorVenta, pedido: null, promocion: l.promocion };
       ws.getRow(rowIdx).height = PHOTO_ROW_HEIGHT_PTS;
 
       const photoUrl = getPhotoSrcBig(l.codigo);
@@ -911,7 +921,7 @@ $('#btnExportPDF').addEventListener('click', async () => {
 
     const rows = lines.map(l => [
       '', l.desc + '\nCódigo: ' + l.codigo + (l.marca ? '\nMarca: ' + l.marca : ''),
-      String(l.qty), money(l.price), money(l.subtotal)
+      String(l.qty), money(l.price), money(l.precioEmpaque), money(l.subtotal)
     ]);
     const imgColW = 20;
     const imgRows = await Promise.all(lines.map(async l => {
@@ -939,18 +949,19 @@ $('#btnExportPDF').addEventListener('click', async () => {
 
     doc.autoTable({
       startY: y,
-      head: [['Imagen', 'Artículo', 'Cantidad', 'Precio Unitario', 'Subtotal']],
+      head: [['Imagen', 'Artículo', 'Cantidad empaque', 'Precio Unitario', 'Precio Empaque', 'Subtotal']],
       body: rows,
       theme: 'plain',
       styles: { fontSize: 9, cellPadding: { top: 4, bottom: 4, left: 3, right: 3 }, lineWidth: { bottom: 0.2 }, lineColor: [222, 226, 230], minCellHeight: 20, valign: 'middle' },
       headStyles: { fillColor: [240, 242, 245], textColor: [90, 95, 105], fontStyle: 'bold', lineWidth: 0, cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 }, minCellHeight: 0 },
       columnStyles: {
         0: { cellWidth: imgColW },
-        2: { cellWidth: 22, halign: 'right' },
-        3: { cellWidth: 32, halign: 'right' },
-        4: { cellWidth: 32, halign: 'right' }
+        2: { cellWidth: 20, halign: 'right' },
+        3: { cellWidth: 26, halign: 'right' },
+        4: { cellWidth: 26, halign: 'right' },
+        5: { cellWidth: 26, halign: 'right' }
       },
-      didParseCell: function(data){ if ([2,3,4].includes(data.column.index)) data.cell.styles.halign = 'right'; },
+      didParseCell: function(data){ if ([2,3,4,5].includes(data.column.index)) data.cell.styles.halign = 'right'; },
       margin: { top: 16, left: marginX, right: marginX, bottom: 18 },
       didDrawCell: function(data){
         if (data.column.index === 0 && data.cell.section === 'body'){
