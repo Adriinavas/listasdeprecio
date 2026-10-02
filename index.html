@@ -802,7 +802,8 @@ async function urlToBase64(url){
 }
 
 const PHOTO_COL_WIDTH_CHARS = 18; // ancho de la columna "Foto"
-const PHOTO_ROW_HEIGHT_PTS = 65; // alto de fila para cada línea de producto
+const PHOTO_ROW_HEIGHT_PTS = 85; // alto de fila para cada línea de producto (holgado a propósito)
+const PHOTO_MAX_PX = 58; // tamaño máximo (ancho y alto) de la foto en píxeles, fijo y conservador
 
 // Mide el ancho/alto real de una imagen (con límite de tiempo, por si falla la decodificación)
 function getImageNaturalSize(dataUrl){
@@ -818,21 +819,15 @@ function getImageNaturalSize(dataUrl){
 }
 
 // Calcula el anclaje de la imagen dentro de la celda tipo "contener" (como object-fit:contain):
-// se le da un tamaño explícito en píxeles (ext) calculado a partir de su proporción real, para
-// que nunca se deforme — a diferencia de pedirle a Excel que la "estire" hasta un rango de celda,
-// que no siempre respeta el ancho real de una columna personalizada.
+// se le da un tamaño explícito y fijo en píxeles (nunca mayor a PHOTO_MAX_PX), calculado a partir
+// de su proporción real para que no se deforme. Se usa un tope fijo pequeño (en vez de calcular
+// el ancho/alto exactos de la columna y la fila) para garantizar que, pase lo que pase, la foto
+// quepa de sobra dentro de la celda y nunca se monte sobre la fila de abajo.
 function computePhotoAnchor(natW, natH, rowIdx){
-  const colWidthPx = PHOTO_COL_WIDTH_CHARS * 7 + 5;
-  const rowHeightPx = PHOTO_ROW_HEIGHT_PTS * (96 / 72);
-  const pad = 6;
-  const usableW = Math.max(10, colWidthPx - pad * 2);
-  const usableH = Math.max(10, rowHeightPx - pad * 2);
-  const scale = Math.min(usableW / natW, usableH / natH);
+  const scale = Math.min(PHOTO_MAX_PX / natW, PHOTO_MAX_PX / natH);
   const extW = natW * scale, extH = natH * scale;
-  const fracX = Math.max(0, Math.min(0.49, (colWidthPx - extW) / 2 / colWidthPx));
-  const fracY = Math.max(0, Math.min(0.49, (rowHeightPx - extH) / 2 / rowHeightPx));
   return {
-    tl: { col: fracX, row: (rowIdx - 1) + fracY },
+    tl: { col: 0.08, row: (rowIdx - 1) + 0.08 },
     ext: { width: extW, height: extH }
   };
 }
