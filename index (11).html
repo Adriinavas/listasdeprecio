@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portal de Precios — Mayoreo</title>
+<style>
+:root{
+  --navy:#16324a; --navy-dark:#0e2233; --navy-50:#eef2f6;
+  --gold:#c9902f; --gold-dark:#a8751f;
+  --bg:#f4f5f7; --card:#ffffff; --border:#e1e4e9; --border-strong:#cbd0d8;
+  --ink:#1b232e; --mut:#616b78; --rojo:#b3261e;
+  --radius:8px; --radius-pill:999px;
+  --shadow:0 1px 3px rgba(0,0,0,.08); --shadow-lg:0 8px 30px rgba(0,0,0,.18);
+  font-family:-apple-system,"Segoe UI",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.4}
+h1,h2,h3{margin:0}
+button{font-family:inherit}
+.hidden{display:none !important}
+
+/* ---- Cortina de acceso ---- */
+#gate{position:fixed;inset:0;background:var(--navy-dark);display:flex;align-items:center;justify-content:center;z-index:9999}
+.gate-box{background:var(--card);border-radius:var(--radius);padding:32px;width:320px;max-width:90vw;box-shadow:var(--shadow-lg);text-align:center}
+.gate-box h2{font-size:18px;margin-bottom:6px}
+.gate-box p{color:var(--mut);font-size:13px;margin:0 0 18px}
+.gate-box input{width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:15px;margin-bottom:10px}
+.gate-box button{width:100%;padding:10px;background:var(--navy);color:#fff;border:0;border-radius:var(--radius);font-weight:600;cursor:pointer}
+.gate-box button:hover{background:var(--navy-dark)}
+.gate-error{color:var(--rojo);font-size:13px;margin-top:8px;min-height:16px}
+
+/* ---- Header ---- */
+header{background:var(--navy);color:#fff;padding:16px 22px}
+header h1{font-size:20px;font-weight:700}
+header .sub{font-size:12.5px;opacity:.75;margin-top:2px}
+
+/* ---- Barra de cliente ---- */
+.clientBar{background:var(--card);border-bottom:1px solid var(--border);padding:12px 22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:sticky;top:0;z-index:15}
+.clientSearchWrap{position:relative;flex:1 1 320px;max-width:460px}
+.clientSearchWrap input{width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:14px}
+.clientResults{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid var(--border-strong);border-radius:var(--radius);box-shadow:var(--shadow-lg);max-height:280px;overflow-y:auto;z-index:20}
+.clientResults .cr-item{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border)}
+.clientResults .cr-item:last-child{border-bottom:0}
+.clientResults .cr-item:hover{background:var(--navy-50)}
+.cr-item .cr-name{font-weight:600;font-size:13.5px}
+.cr-item .cr-meta{font-size:12px;color:var(--mut)}
+.clientChip{display:none;align-items:center;gap:8px;background:var(--navy-50);border:1px solid var(--border-strong);border-radius:var(--radius-pill);padding:6px 6px 6px 14px;font-size:13.5px}
+.clientChip.on{display:flex}
+.clientChip b{font-weight:700}
+.clientChip button{background:#fff;border:1px solid var(--border-strong);border-radius:var(--radius-pill);padding:4px 10px;font-size:12.5px;cursor:pointer;color:var(--mut)}
+.clientChip button:hover{background:var(--navy-50)}
+.ivaNote{margin-left:auto;font-size:12px;color:var(--mut);white-space:nowrap}
+.noClientNote{font-size:13px;color:var(--gold-dark);font-weight:600}
+
+/* ---- Layout principal ---- */
+.layout{display:flex;align-items:flex-start;gap:0}
+.sidebar{width:260px;flex:none;background:var(--card);border-right:1px solid var(--border);padding:16px;height:calc(100vh - 110px);overflow-y:auto;position:sticky;top:110px}
+.sidebar h3{font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);margin:18px 0 8px}
+.sidebar h3:first-child{margin-top:0}
+.filterSearch{width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:13px;margin-bottom:8px}
+.filterGroup{max-height:170px;overflow-y:auto}
+.filterGroup label{display:flex;align-items:center;gap:7px;font-size:13px;padding:3px 0;cursor:pointer}
+.filterGroup input[type=checkbox]{flex:none}
+.filterGroup .fcount{color:var(--mut);font-size:11.5px;margin-left:auto}
+.clearFiltersLink{background:none;border:0;color:var(--navy);font-size:12.5px;font-weight:600;cursor:pointer;padding:0;margin-top:14px}
+.clearFiltersLink:hover{text-decoration:underline}
+
+.main{flex:1;min-width:0;padding:16px 22px 100px}
+.resultBar{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.resultBar .count{font-size:13px;color:var(--mut)}
+#searchInput{padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:14px;width:280px;max-width:60vw}
+
+table.cat{width:100%;border-collapse:collapse;background:var(--card);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+table.cat thead th{background:var(--navy-50);text-align:left;font-size:12.5px;color:var(--mut);font-weight:700;padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap}
+table.cat thead th.num{text-align:right}
+table.cat tbody td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:middle;font-size:13.5px}
+table.cat tbody tr:hover{background:var(--navy-50)}
+td.num{text-align:right}
+.prod-thumb{width:38px;height:38px;border-radius:6px;object-fit:contain;background:#fff;border:1px solid var(--border);padding:2px}
+.prod-thumb.noimg{display:flex;align-items:center;justify-content:center;color:var(--border-strong);font-size:16px}
+.prod-code{color:var(--mut);font-size:12.5px;white-space:nowrap}
+.prod-desc{font-weight:600}
+.chip{display:inline-block;font-size:11px;font-weight:700;color:var(--navy);background:var(--navy-50);border-radius:var(--radius-pill);padding:2px 8px;margin-top:3px}
+.chip.bdf{color:var(--gold-dark);background:#fbf1e1}
+.promoChip{position:relative;color:#3730a3;background:#eef0fd;cursor:help}
+.promoBubble{display:none;position:absolute;left:0;bottom:calc(100% + 8px);z-index:25;width:260px;max-width:60vw;
+  background:var(--card);color:var(--ink);font-size:12.5px;font-weight:400;line-height:1.4;text-align:left;
+  padding:10px 12px;border-radius:var(--radius);box-shadow:var(--shadow-lg);border:1px solid var(--border-strong);white-space:normal}
+.promoChip:hover .promoBubble, .promoChip:focus .promoBubble{display:block}
+.priceCell{font-weight:700;color:var(--rojo)}
+.priceCell.na{color:var(--mut);font-weight:400;font-size:12px}
+.qtybox{display:flex;align-items:center;gap:6px}
+.qtybox button{width:26px;height:26px;border-radius:var(--radius);border:1px solid var(--border-strong);background:#fff;cursor:pointer;font-size:15px}
+.qtybox input{width:44px;text-align:center;border:1px solid var(--border-strong);border-radius:var(--radius);padding:4px 2px;font-size:14px}
+.btn-add{background:var(--navy);border:0;border-radius:var(--radius);padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;color:#fff;white-space:nowrap}
+.btn-add:disabled{background:var(--border-strong);cursor:not-allowed}
+.btn-add:hover:not(:disabled){background:var(--navy-dark)}
+.selectCell{width:34px;text-align:center}
+.selectCell input, th.selectCell input{cursor:pointer}
+.actionsCell{display:flex;gap:8px;align-items:center;flex-wrap:nowrap}
+.empty{padding:50px;text-align:center;color:var(--mut)}
+
+/* ---- Lista flotante ---- */
+.fab-stack{position:fixed;right:20px;bottom:20px;z-index:30}
+.list-btn{background:var(--gold);color:#fff;border:0;border-radius:var(--radius-pill);padding:13px 22px;font-size:15px;font-weight:700;box-shadow:var(--shadow-lg);cursor:pointer;display:flex;align-items:center;gap:8px}
+.list-btn:hover{background:var(--gold-dark)}
+.list-btn .badge{background:#fff;color:var(--gold-dark);border-radius:var(--radius-pill);min-width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;padding:0 6px}
+
+.list-panel{position:fixed;top:0;right:-440px;width:420px;max-width:92vw;height:100%;background:var(--card);box-shadow:-4px 0 24px rgba(0,0,0,.18);z-index:40;transition:right .25s ease;display:flex;flex-direction:column}
+.list-panel.open{right:0}
+.list-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border)}
+.list-head h2{font-size:16px}
+.list-head button{background:none;border:0;font-size:18px;cursor:pointer;color:var(--mut)}
+.list-items{flex:1;overflow-y:auto;padding:10px 18px}
+.list-empty{padding:40px 0;text-align:center;color:var(--mut);font-size:13.5px}
+.list-item{display:flex;gap:10px;padding:12px 0;border-bottom:1px solid var(--border)}
+.list-item img{width:44px;height:44px;border-radius:6px;object-fit:contain;background:#fff;border:1px solid var(--border);flex:none}
+.li-text{flex:1;min-width:0}
+.li-text .li-desc{font-weight:600;font-size:13px}
+.li-text .li-code{color:var(--mut);font-size:12px}
+.li-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.li-price{font-weight:700;font-size:13px}
+.li-remove{background:none;border:0;color:var(--mut);cursor:pointer;font-size:13px}
+.li-remove:hover{color:var(--rojo)}
+.list-footer{border-top:1px solid var(--border);padding:16px 18px}
+.list-total{display:flex;justify-content:space-between;font-weight:700;font-size:16px;margin-bottom:12px}
+.btn-primary{width:100%;padding:12px;background:var(--gold);color:#fff;border:0;border-radius:var(--radius);font-weight:700;font-size:14.5px;cursor:pointer}
+.list-footer .btn-primary{flex:1;width:auto}
+.genOptions{display:flex;gap:10px;margin-bottom:12px}
+.genOptions label{flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mut);font-weight:600}
+.genOptions select,.genOptions input{padding:7px 8px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:13px;color:var(--ink)}
+.btn-primary:disabled{background:var(--border-strong);cursor:not-allowed}
+.btn-primary:hover:not(:disabled){background:var(--gold-dark)}
+
+/* ---- Toast ---- */
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:10px 18px;border-radius:var(--radius-pill);font-size:13.5px;opacity:0;pointer-events:none;transition:.25s;z-index:60}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(max-width:900px){
+  .sidebar{display:none}
+  .sidebar.open{display:block;position:fixed;top:0;left:0;bottom:0;width:82%;max-width:300px;z-index:50;height:100vh;box-shadow:2px 0 20px rgba(0,0,0,.2)}
+  .filterToggle{display:inline-flex !important}
+}
+.filterToggle{display:none;align-items:center;gap:6px;padding:8px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);background:#fff;font-weight:600;font-size:13px;cursor:pointer}
+.sidebarOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:45}
+.sidebarOverlay.open{display:block}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="gate-box">
+    <h2>Acceso restringido</h2>
+    <p>Portal de precios — solo personal autorizado</p>
+    <input type="password" id="gatePass" placeholder="Contraseña">
+    <button id="gateBtn">Entrar</button>
+    <div class="gate-error" id="gateError"></div>
+  </div>
+</div>
+
+<header>
+  <h1>Portal de Precios</h1>
+  <div class="sub">Catálogo completo — precios según lista asignada al cliente</div>
+</header>
+
+<div class="clientBar">
+  <button class="filterToggle" id="filterToggleBtn">☰ Filtros</button>
+  <div class="clientSearchWrap">
+    <input id="clientSearch" type="text" placeholder="Buscar cliente por nombre o código…" autocomplete="off">
+    <div class="clientResults hidden" id="clientResults"></div>
+  </div>
+  <div class="clientChip" id="clientChip">
+    <span><b id="clientChipName"></b> <span id="clientChipCode" style="color:var(--mut)"></span></span>
+    <button id="clientChipClear">Cambiar</button>
+  </div>
+  <span class="noClientNote" id="noClientNote">Selecciona un cliente para ver precios</span>
+  <span class="ivaNote">Precios no incluyen IVA</span>
+</div>
+
+<div class="sidebarOverlay" id="sidebarOverlay"></div>
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <h3>Marca</h3>
+    <input class="filterSearch" id="searchMarca" placeholder="Buscar marca…">
+    <div class="filterGroup" id="groupMarca"></div>
+
+    <h3>Categoría</h3>
+    <div class="filterGroup" id="groupCategoria"></div>
+
+    <h3>Subcategoría</h3>
+    <input class="filterSearch" id="searchSub" placeholder="Buscar subcategoría…">
+    <div class="filterGroup" id="groupSubcategoria"></div>
+
+    <h3>Clasificación BDF</h3>
+    <div class="filterGroup" id="groupBdf"></div>
+
+    <button class="clearFiltersLink" id="btnClearFilters">Borrar filtros</button>
+  </aside>
+
+  <main class="main">
+    <div class="resultBar">
+      <span class="count" id="resultCount">Cargando catálogo…</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="btn-add" id="btnAddAllSelected" disabled>Agregar todo (0)</button>
+        <input id="searchInput" type="text" placeholder="Buscar por código, nombre o marca…">
+      </div>
+    </div>
+    <div id="tableWrap">
+      <table class="cat">
+        <thead><tr>
+          <th class="selectCell"><input type="checkbox" id="selectAllCheckbox" title="Seleccionar todos los resultados filtrados"></th><th></th><th>Código</th><th>Producto</th><th class="num">Disponible</th><th class="num">Precio unitario</th><th class="num">Precio empaque</th><th></th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<div class="fab-stack">
+  <button class="list-btn" id="listBtn">📋 Mi lista <span class="badge" id="listCount">0</span></button>
+</div>
+
+<div class="list-panel" id="listPanel">
+  <div class="list-head"><h2>Mi lista</h2><button id="closeList">✕</button></div>
+  <div class="list-items" id="listItems"><div class="list-empty">Aún no has agregado productos.</div></div>
+  <div class="list-footer">
+    <div class="list-total"><span>Total</span><span id="listTotal">$0.00</span></div>
+    <div class="genOptions">
+      <label>Agrupar por
+        <select id="agruparPor">
+          <option value="none">Sin agrupar</option>
+          <option value="categoria">Categoría</option>
+          <option value="marca">Marca</option>
+        </select>
+      </label>
+      <label>Vigente hasta
+        <input type="date" id="vigenteHasta">
+      </label>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn-primary" id="btnExportExcel" disabled style="background:var(--navy)">Generar Excel</button>
+      <button class="btn-primary" id="btnExportPDF" disabled>Generar PDF</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+
+/* ======================= Cortina de acceso ======================= */
+const GATE_PASSWORD = 'Mayoreo2026*';
+(function gateInit(){
+  if (sessionStorage.getItem('portalUnlocked') === 'yes'){
+    $('#gate').style.display = 'none';
+    return;
+  }
+  $('#gateBtn').addEventListener('click', tryUnlock);
+  $('#gatePass').addEventListener('keydown', e => { if (e.key === 'Enter') tryUnlock(); });
+  function tryUnlock(){
+    if ($('#gatePass').value === GATE_PASSWORD){
+      sessionStorage.setItem('portalUnlocked', 'yes');
+      $('#gate').style.display = 'none';
+    } else {
+      $('#gateError').textContent = 'Contraseña incorrecta';
+    }
+  }
+})();
+
+/* ======================= Utilidades ======================= */
+function toast(msg){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove('on'), 2400);
+}
+function escAttr(s){ return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
+function money(n){ return '$ ' + (Number(n)||0).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+
+function parseCSV(text){
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++){
+    const c = text[i];
+    if (inQuotes){
+      if (c === '"'){
+        if (text[i+1] === '"'){ field += '"'; i++; }
+        else { inQuotes = false; }
+      } else field += c;
+    } else if (c === '"'){
+      inQuotes = true;
+    } else if (c === ','){
+      row.push(field); field = '';
+    } else if (c === '\r'){
+      /* ignorar */
+    } else if (c === '\n'){
+      row.push(field); rows.push(row); row = []; field = '';
+    } else field += c;
+  }
+  if (field.length > 0 || row.length > 0){ row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(c => c.trim() !== ''));
+}
+
+/* ======================= Fuentes de datos en vivo ======================= */
+const SPREADSHEET_ID = '1QT3MBkca4M9QEHFoZgjC4dVPZmCiqpj38R6YVLBSn6I';
+const ARTICULOS_URLS = [
+  'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/gviz/tq?tqx=out:csv&gid=655357259',
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vQzqvFIW3UbGsp1mpVC3Q7RZXF85d_T6O7cpEIOt5czUq3JmVqvhMXPdvQosD81ui2f36n5Y79jPdTx/pub?gid=655357259&single=true&output=csv'
+];
+const CLIENTES_URLS = [
+  'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/gviz/tq?tqx=out:csv&gid=814469810',
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vQzqvFIW3UbGsp1mpVC3Q7RZXF85d_T6O7cpEIOt5czUq3JmVqvhMXPdvQosD81ui2f36n5Y79jPdTx/pub?gid=814469810&single=true&output=csv'
+];
+const PHOTO_INDEX_URL = 'https://docs.google.com/spreadsheets/d/1biAtWEcnP0OpIwMV6gJzv3dmEl5veQQmM7ba3u95szY/gviz/tq?tqx=out:csv&gid=0';
+
+const PRICE_LIST_COLUMNS = ['ARAGUAB','BOLIVARCVM','CARABOBENA','EPA','FERREBOT','GRUPOPICO','LARAB','LICCIONI','LPARAGUA','LPLARA','LPMARGARITAB','LPMARGARITAD','MAYOREOB','MAYOREOD','MAYOREOEPA','MAYOREOL','PILOTO D','PORTAL PILOT','PORTALARAGUB','PORTALARAGUD','PORTALCONTB','PORTALCONTD','PORTALD','PORTALLARAB','PORTALLARAD'];
+
+let PRODUCTS = [];
+let CLIENTS = [];
+let DRIVE_IDS = {};
+let selectedClient = null; // {code, name, nivelPrecio}
+let list = {}; // codigo -> {qty}
+
+async function fetchFirstWorking(urls){
+  let lastErr = null;
+  for (const url of urls){
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      if (!text || text.length < 10) throw new Error('vacío');
+      return text;
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('No se pudo obtener ningún enlace');
+}
+
+function buildProducts(text){
+  const rows = parseCSV(text);
+  const header = rows[0].map(h => h.trim());
+  const idx = name => header.indexOf(name);
+  const idxAny = (...names) => { for (const n of names){ const i = idx(n); if (i !== -1) return i; } return -1; };
+  const iCodigo = idx('ARTICULO'), iDesc = idx('DESCRIPCION'), iDisp = idx('CANTIDAD_DISPONIBLE'),
+        iCat = idx('DESC_CLASIFICACION_1'), iSub = idx('DESC_CLASIFICACION_2'), iMarca = idx('DESC_CLASIFICACION_3'),
+        iBdf = idx('DESC_CLASIFICACION_4'), iEstado = idx('CLASIFICACION_6'), iInfaltable = idx('U_INFALTABLE'), iFactor = idx('FACTOR_VENTA'),
+        iPromo = idxAny('Promoción', 'Promocion', 'PROMOCION', 'PROMOCIÓN', 'Promo', 'PROMO');
+  const priceIdx = PRICE_LIST_COLUMNS.map(c => idx(c));
+
+  const out = [];
+  for (let r = 1; r < rows.length; r++){
+    const row = rows[r];
+    const codigo = (row[iCodigo] || '').trim();
+    if (!codigo) continue;
+    const estado = (row[iEstado] || '').trim();
+    if (estado !== 'P1') continue; // solo productos "Disponible para la venta"
+    const disponible = parseFloat(row[iDisp]) || 0;
+    if (disponible <= 0) continue; // se ocultan los productos sin existencia
+    const precios = {};
+    PRICE_LIST_COLUMNS.forEach((col, i) => {
+      const v = parseFloat(row[priceIdx[i]]);
+      precios[col] = Number.isFinite(v) ? v : null;
+    });
+    out.push({
+      codigo,
+      descripcion: (row[iDesc] || '').trim(),
+      disponible,
+      categoria: (row[iCat] || '').trim() || 'Sin categoría',
+      subcategoria: (row[iSub] || '').trim() || 'Sin subcategoría',
+      marca: (row[iMarca] || '').trim() || 'Sin marca',
+      bdf: (row[iBdf] || '').trim() || 'Sin clasificación',
+      infaltable: (row[iInfaltable] || '').trim() === 'SI',
+      factorVenta: Math.max(1, Math.round(parseFloat(row[iFactor])) || 1),
+      promocion: iPromo === -1 ? '' : (row[iPromo] || '').trim(),
+      precios
+    });
+  }
+  return out;
+}
+
+function buildClients(text){
+  const rows = parseCSV(text);
+  const header = rows[0].map(h => h.trim());
+  const idx = name => header.indexOf(name);
+  const iCode = idx('CLIENTE'), iName = idx('NOMBRE'), iNivel = idx('NIVEL_PRECIO'), iActivo = idx('ACTIVO');
+  const out = [];
+  for (let r = 1; r < rows.length; r++){
+    const row = rows[r];
+    const code = (row[iCode] || '').trim();
+    if (!code) continue;
+    if (iActivo !== -1 && (row[iActivo] || '').trim() !== 'S') continue;
+    out.push({
+      code,
+      name: (row[iName] || '').trim(),
+      nivelPrecio: (row[iNivel] || '').trim()
+    });
+  }
+  return out;
+}
+
+function buildDriveIndex(text){
+  const rows = parseCSV(text);
+  const header = rows[0].map(h => h.trim());
+  const iCodigo = header.indexOf('Nombre limpio') === -1 ? 1 : header.indexOf('Nombre limpio');
+  const iId = header.indexOf('ID') === -1 ? 3 : header.indexOf('ID');
+  const out = {};
+  for (let r = 1; r < rows.length; r++){
+    const row = rows[r];
+    const codigo = (row[iCodigo] || '').trim();
+    const id = (row[iId] || '').trim();
+    if (codigo && id && !(codigo in out)) out[codigo] = id;
+  }
+  return out;
+}
+
+function getPhotoSrc(codigo){
+  const id = DRIVE_IDS[codigo];
+  return id ? ('https://drive.google.com/thumbnail?id=' + id + '&sz=w200') : null;
+}
+function getPhotoSrcBig(codigo){
+  const id = DRIVE_IDS[codigo];
+  return id ? ('https://drive.google.com/thumbnail?id=' + id + '&sz=w600') : null;
+}
+
+/* ======================= Estado de filtros ======================= */
+let activeFilters = { marca: new Set(), categoria: new Set(), subcategoria: new Set(), bdf: new Set() };
+let searchQuery = '';
+let marcaSearchQuery = '';
+let subSearchQuery = '';
+
+function priceFor(product){
+  if (!selectedClient) return null;
+  const v = product.precios[selectedClient.nivelPrecio];
+  return (v == null) ? null : v;
+}
+
+function filteredProducts(){
+  const q = searchQuery.trim().toLowerCase();
+  return PRODUCTS.filter(p => {
+    if (activeFilters.marca.size && !activeFilters.marca.has(p.marca)) return false;
+    if (activeFilters.categoria.size && !activeFilters.categoria.has(p.categoria)) return false;
+    if (activeFilters.subcategoria.size && !activeFilters.subcategoria.has(p.subcategoria)) return false;
+    if (activeFilters.bdf.size && !activeFilters.bdf.has(p.bdf)) return false;
+    if (q){
+      const hay = (p.codigo + ' ' + p.descripcion + ' ' + p.marca).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function countsBy(field){
+  const counts = {};
+  PRODUCTS.forEach(p => { counts[p[field]] = (counts[p[field]] || 0) + 1; });
+  return counts;
+}
+
+/* Productos que cumplen todos los filtros activos EXCEPTO el del propio campo
+   (así cada grupo de filtro refleja el efecto de los demás, sin autolimitarse) */
+function productsMatchingFiltersExcept(excludeField){
+  const q = searchQuery.trim().toLowerCase();
+  return PRODUCTS.filter(p => {
+    if (excludeField !== 'marca' && activeFilters.marca.size && !activeFilters.marca.has(p.marca)) return false;
+    if (excludeField !== 'categoria' && activeFilters.categoria.size && !activeFilters.categoria.has(p.categoria)) return false;
+    if (excludeField !== 'subcategoria' && activeFilters.subcategoria.size && !activeFilters.subcategoria.has(p.subcategoria)) return false;
+    if (excludeField !== 'bdf' && activeFilters.bdf.size && !activeFilters.bdf.has(p.bdf)) return false;
+    if (q){
+      const hay = (p.codigo + ' ' + p.descripcion + ' ' + p.marca).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function countsByField(products, field){
+  const counts = {};
+  products.forEach(p => { counts[p[field]] = (counts[p[field]] || 0) + 1; });
+  return counts;
+}
+
+/* Quita del estado cualquier selección que ya no tenga productos bajo los demás filtros activos */
+function pruneInvalidSelections(){
+  ['marca','categoria','subcategoria','bdf'].forEach(field => {
+    const relevant = productsMatchingFiltersExcept(field);
+    const validValues = new Set(relevant.map(p => p[field]));
+    Array.from(activeFilters[field]).forEach(v => { if (!validValues.has(v)) activeFilters[field].delete(v); });
+  });
+}
+
+function renderFilterGroup(containerId, field, searchQ){
+  const el = $('#' + containerId);
+  const relevant = productsMatchingFiltersExcept(field);
+  const counts = countsByField(relevant, field);
+  let entries = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+  if (searchQ) entries = entries.filter(([name]) => name.toLowerCase().includes(searchQ.toLowerCase()));
+  el.innerHTML = entries.map(([name, count]) => {
+    const isChecked = activeFilters[field].has(name);
+    return `<label><input type="checkbox" data-field="${field}" value="${escAttr(name)}" ${isChecked?'checked':''}> ${name} <span class="fcount">${count}</span></label>`;
+  }).join('') || '<div style="color:var(--mut);font-size:12.5px">Sin resultados con los filtros actuales</div>';
+}
+
+function renderAllFilterGroups(){
+  renderFilterGroup('groupMarca', 'marca', marcaSearchQuery);
+  renderFilterGroup('groupCategoria', 'categoria', '');
+  renderFilterGroup('groupSubcategoria', 'subcategoria', subSearchQuery);
+  renderFilterGroup('groupBdf', 'bdf', '');
+}
+
+document.addEventListener('change', e => {
+  if (e.target.matches('.filterGroup input[type=checkbox]')){
+    const field = e.target.dataset.field;
+    const val = e.target.value;
+    if (e.target.checked) activeFilters[field].add(val);
+    else activeFilters[field].delete(val);
+    pruneInvalidSelections();
+    renderAllFilterGroups();
+    renderTable();
+  }
+});
+
+$('#searchMarca').addEventListener('input', e => { marcaSearchQuery = e.target.value; renderFilterGroup('groupMarca','marca',marcaSearchQuery); });
+$('#searchSub').addEventListener('input', e => { subSearchQuery = e.target.value; renderFilterGroup('groupSubcategoria','subcategoria',subSearchQuery); });
+$('#searchInput').addEventListener('input', e => { searchQuery = e.target.value; renderAllFilterGroups(); renderTable(); });
+$('#btnClearFilters').addEventListener('click', () => {
+  activeFilters = { marca: new Set(), categoria: new Set(), subcategoria: new Set(), bdf: new Set() };
+  searchQuery = ''; $('#searchInput').value = '';
+  marcaSearchQuery = ''; $('#searchMarca').value = '';
+  subSearchQuery = ''; $('#searchSub').value = '';
+  renderAllFilterGroups();
+  renderTable();
+});
+
+/* ======================= Tabla de productos ======================= */
+const MAX_RENDER = 300;
+function renderTable(){
+  const filtered = filteredProducts();
+  $('#resultCount').textContent = filtered.length + ' de ' + PRODUCTS.length + ' productos';
+  const toRender = filtered.slice(0, MAX_RENDER);
+  const tbody = $('#tbody');
+  if (toRender.length === 0){
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty">No se encontraron productos con estos filtros.</div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = toRender.map(rowHtml).join('') +
+    (filtered.length > MAX_RENDER ? `<tr><td colspan="7"><div class="empty">Mostrando los primeros ${MAX_RENDER} de ${filtered.length} resultados. Afina la búsqueda o los filtros para ver más.</div></td></tr>` : '');
+}
+
+function rowHtml(p){
+  const src = getPhotoSrc(p.codigo);
+  const thumb = src
+    ? `<img class="prod-thumb" src="${src}" loading="lazy" alt="${escAttr(p.codigo)}">`
+    : `<div class="prod-thumb noimg">—</div>`;
+  const price = priceFor(p);
+  const priceHtml = !selectedClient
+    ? `<span class="priceCell na">Selecciona un cliente</span>`
+    : (price == null ? `<span class="priceCell na">No disponible</span>` : `<span class="priceCell">${money(price)}</span>`);
+  // Precio de empaque provisional: precio unitario × unidades del empaque (sin descuento),
+  // mientras no conectemos la base de descuentos por volumen.
+  const priceEmpaqueHtml = !selectedClient
+    ? `<span class="priceCell na">—</span>`
+    : (price == null ? `<span class="priceCell na">—</span>` : `<span class="priceCell">${money(price * p.factorVenta)}</span>`);
+  const qty = list[p.codigo] ? list[p.codigo].qty : 0;
+  const disabled = (!selectedClient || price == null) ? 'disabled' : '';
+  const checked = selectedCodes.has(p.codigo) ? 'checked' : '';
+  const actionHtml = qty > 0
+    ? `<div class="qtybox">
+        <button data-act="dec" data-codigo="${escAttr(p.codigo)}">−</button>
+        <input type="text" inputmode="numeric" value="${qty}" data-codigo="${escAttr(p.codigo)}" class="qtyinput">
+        <button data-act="inc" data-codigo="${escAttr(p.codigo)}">+</button>
+       </div>`
+    : `<button class="btn-add" data-codigo="${escAttr(p.codigo)}" data-factor="${p.factorVenta}" ${disabled}>Agregar</button>`;
+  return `<tr data-codigo="${escAttr(p.codigo)}">
+    <td class="selectCell"><input type="checkbox" class="rowCheckbox" data-codigo="${escAttr(p.codigo)}" ${checked}></td>
+    <td>${thumb}</td>
+    <td class="prod-code">${p.codigo}</td>
+    <td><div class="prod-desc">${p.descripcion}</div><span class="chip">${p.marca}</span> <span class="chip bdf">${p.bdf}</span>${p.factorVenta > 1 ? ` <span class="chip" style="color:var(--mut);background:transparent;border:1px solid var(--border-strong)">Empaque x${p.factorVenta}</span>` : ''}${p.promocion ? ` <span class="chip promoChip" tabindex="0">Promoción<span class="promoBubble">${p.promocion}</span></span>` : ''}</td>
+    <td class="num">${p.disponible.toLocaleString('es-VE')}</td>
+    <td class="num">${priceHtml}</td>
+    <td class="num">${priceEmpaqueHtml}</td>
+    <td><div class="actionsCell">${actionHtml}</div></td>
+  </tr>`;
+}
+
+function setQty(codigo, qty){
+  const p = PRODUCTS.find(x => x.codigo === codigo);
+  if (!p) return;
+  qty = Math.max(0, Math.floor(qty) || 0);
+  if (qty === 0) delete list[codigo];
+  else list[codigo] = { qty };
+  updateListUI();
+  const row = document.querySelector(`tr[data-codigo="${CSS.escape(codigo)}"]`);
+  if (row) row.outerHTML = rowHtml(p);
+}
+
+document.addEventListener('click', e => {
+  const addBtn = e.target.closest('.btn-add');
+  if (addBtn && addBtn.id !== 'btnAddAllSelected' && !addBtn.disabled){
+    const factor = parseInt(addBtn.dataset.factor, 10) || 1;
+    setQty(addBtn.dataset.codigo, factor);
+    toast('Agregado a la lista ✓');
+    return;
+  }
+  const stepBtn = e.target.closest('.qtybox button[data-act]');
+  if (stepBtn){
+    const codigo = stepBtn.dataset.codigo;
+    const cur = list[codigo] ? list[codigo].qty : 0;
+    setQty(codigo, stepBtn.dataset.act === 'inc' ? cur + 1 : cur - 1);
+  }
+  const removeBtn = e.target.closest('.li-remove');
+  if (removeBtn) setQty(removeBtn.dataset.codigo, 0);
+});
+document.addEventListener('change', e => {
+  if (e.target.classList.contains('qtyinput')) setQty(e.target.dataset.codigo, parseInt(e.target.value, 10));
+});
+
+/* ======================= Selección múltiple ======================= */
+let selectedCodes = new Set();
+
+function updateBulkBar(){
+  const btn = $('#btnAddAllSelected');
+  btn.textContent = `Agregar todo (${selectedCodes.size})`;
+  btn.disabled = selectedCodes.size === 0 || !selectedClient;
+}
+
+document.addEventListener('change', e => {
+  if (e.target.classList.contains('rowCheckbox')){
+    const codigo = e.target.dataset.codigo;
+    if (e.target.checked) selectedCodes.add(codigo);
+    else selectedCodes.delete(codigo);
+    updateBulkBar();
+  }
+  if (e.target.id === 'selectAllCheckbox'){
+    const filtered = filteredProducts();
+    if (e.target.checked) filtered.forEach(p => selectedCodes.add(p.codigo));
+    else filtered.forEach(p => selectedCodes.delete(p.codigo));
+    renderTable();
+    updateBulkBar();
+  }
+});
+
+$('#btnAddAllSelected').addEventListener('click', () => {
+  if (!selectedClient){ toast('Selecciona un cliente primero'); return; }
+  let added = 0, skipped = 0;
+  selectedCodes.forEach(codigo => {
+    const p = PRODUCTS.find(x => x.codigo === codigo);
+    if (!p) return;
+    const price = priceFor(p);
+    if (price == null){ skipped++; return; }
+    const cur = list[codigo] ? list[codigo].qty : 0;
+    const qty = cur > 0 ? cur + p.factorVenta : p.factorVenta;
+    list[codigo] = { qty };
+    added++;
+  });
+  selectedCodes.clear();
+  updateListUI();
+  renderTable();
+  updateBulkBar();
+  toast(skipped > 0 ? `${added} productos agregados, ${skipped} sin precio disponible` : `${added} productos agregados ✓`);
+});
+
+/* ======================= Panel "Mi lista" ======================= */
+function listLines(){
+  return Object.keys(list).map(codigo => {
+    const p = PRODUCTS.find(x => x.codigo === codigo);
+    if (!p) return null;
+    const qty = list[codigo].qty;
+    const price = priceFor(p) || 0;
+    // Precio de empaque provisional: precio unitario × unidades del empaque (sin descuento),
+    // mientras no conectemos la base de descuentos por volumen.
+    const precioEmpaque = price * p.factorVenta;
+    return { codigo, desc: p.descripcion, marca: p.marca, categoria: p.categoria, qty, price, precioEmpaque, subtotal: price * qty, factorVenta: p.factorVenta, promocion: p.promocion || '' };
+  }).filter(Boolean);
+}
+
+// Agrupa las líneas por categoría o marca (o las deja en un solo bloque si no se pidió agrupar)
+function groupLines(lines, mode){
+  if (mode !== 'categoria' && mode !== 'marca') return [{ nombre: null, items: lines }];
+  const groups = {};
+  const order = [];
+  lines.forEach(l => {
+    const key = mode === 'categoria' ? (l.categoria || 'Sin categoría') : (l.marca || 'Sin marca');
+    if (!groups[key]){ groups[key] = []; order.push(key); }
+    groups[key].push(l);
+  });
+  return order.map(nombre => ({ nombre, items: groups[nombre] }));
+}
+
+function updateListUI(){
+  const lines = listLines();
+  const count = lines.reduce((a,l) => a + l.qty, 0);
+  const total = lines.reduce((a,l) => a + l.subtotal, 0);
+  $('#listCount').textContent = count;
+  $('#listTotal').textContent = money(total);
+  $('#btnExportExcel').disabled = lines.length === 0;
+  $('#btnExportPDF').disabled = lines.length === 0;
+
+  const el = $('#listItems');
+  if (lines.length === 0){
+    el.innerHTML = '<div class="list-empty">Aún no has agregado productos.</div>';
+    return;
+  }
+  el.innerHTML = lines.map(l => {
+    const src = getPhotoSrc(l.codigo);
+    return `<div class="list-item">
+      <img src="${src || ''}" ${src?'':'style="display:flex;align-items:center;justify-content:center"'} alt="">
+      <div class="li-text">
+        <div class="li-desc">${l.desc}</div>
+        <div class="li-code">${l.codigo} · ${l.marca}</div>
+      </div>
+      <div class="li-right">
+        <span class="li-price">${money(l.subtotal)}</span>
+        <button class="li-remove" data-codigo="${escAttr(l.codigo)}">Quitar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+const listPanel = $('#listPanel');
+$('#listBtn').addEventListener('click', () => listPanel.classList.add('open'));
+$('#closeList').addEventListener('click', () => listPanel.classList.remove('open'));
+
+/* ======================= Selección de cliente ======================= */
+const clientSearchEl = $('#clientSearch');
+const clientResultsEl = $('#clientResults');
+clientSearchEl.addEventListener('input', () => {
+  const q = clientSearchEl.value.trim().toLowerCase();
+  if (q.length < 2){ clientResultsEl.classList.add('hidden'); return; }
+  const matches = CLIENTS.filter(c => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)).slice(0, 40);
+  if (matches.length === 0){
+    clientResultsEl.innerHTML = '<div class="cr-item" style="color:var(--mut)">Sin resultados</div>';
+  } else {
+    clientResultsEl.innerHTML = matches.map(c =>
+      `<div class="cr-item" data-code="${escAttr(c.code)}"><div class="cr-name">${c.name}</div><div class="cr-meta">${c.code} · Lista: ${c.nivelPrecio || '—'}</div></div>`
+    ).join('');
+  }
+  clientResultsEl.classList.remove('hidden');
+});
+clientResultsEl.addEventListener('click', e => {
+  const item = e.target.closest('.cr-item[data-code]');
+  if (!item) return;
+  const c = CLIENTS.find(x => x.code === item.dataset.code);
+  if (!c) return;
+  selectClient(c);
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('.clientSearchWrap')) clientResultsEl.classList.add('hidden');
+});
+
+function selectClient(c){
+  selectedClient = c;
+  $('#clientChipName').textContent = c.name;
+  $('#clientChipCode').textContent = '(' + c.code + ')';
+  $('#clientChip').classList.add('on');
+  clientSearchEl.value = '';
+  clientResultsEl.classList.add('hidden');
+  clientSearchEl.closest('.clientSearchWrap').style.display = 'none';
+  renderTable();
+  updateListUI();
+  updateBulkBar();
+}
+$('#clientChipClear').addEventListener('click', () => {
+  selectedClient = null;
+  $('#clientChip').classList.remove('on');
+  clientSearchEl.closest('.clientSearchWrap').style.display = '';
+  list = {};
+  selectedCodes.clear();
+  renderTable();
+  updateListUI();
+  updateBulkBar();
+});
+
+/* ======================= Filtro móvil ======================= */
+$('#filterToggleBtn').addEventListener('click', () => {
+  $('#sidebar').classList.add('open');
+  $('#sidebarOverlay').classList.add('open');
+});
+$('#sidebarOverlay').addEventListener('click', () => {
+  $('#sidebar').classList.remove('open');
+  $('#sidebarOverlay').classList.remove('open');
+});
+
+/* ======================= Exportar a Excel ======================= */
+async function urlToBase64(url){
+  try {
+    const proxied = 'https://images.weserv.nl/?url=' + encodeURIComponent(url.replace(/^https?:\/\//, ''));
+    const res = await fetch(proxied);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) { return null; }
+}
+
+const PHOTO_COL_WIDTH_CHARS = 14; // ancho de la columna "Foto"
+const PHOTO_ROW_HEIGHT_PTS = 45; // alto de fila para cada línea de producto
+
+function formatVigencia(){
+  const v = $('#vigenteHasta').value;
+  if (!v) return '';
+  const [y,m,d] = v.split('-');
+  return d + '/' + m + '/' + y;
+}
+
+$('#btnExportExcel').addEventListener('click', async () => {
+  const lines = listLines();
+  if (!lines.length) return;
+  const btn = $('#btnExportExcel');
+  const original = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Generando...';
+  try {
+    const agrupar = $('#agruparPor').value;
+    const vigencia = formatVigencia();
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Lista de precios');
+    ws.columns = [
+      { header: 'Foto', key: 'foto', width: PHOTO_COL_WIDTH_CHARS },
+      { header: 'Código', key: 'codigo', width: 16 },
+      { header: 'Descripción', key: 'desc', width: 42 },
+      { header: 'Marca', key: 'marca', width: 18 },
+      { header: 'Precio unitario', key: 'precio', width: 14 },
+      { header: 'Precio empaque', key: 'precioEmpaque', width: 15 },
+      { header: 'Cantidad empaque', key: 'empaque', width: 16 },
+      { header: 'Cantidad pedido', key: 'pedido', width: 16 },
+      { header: 'Total línea', key: 'total', width: 16 },
+      { header: 'Promoción', key: 'promocion', width: 36 }
+    ];
+    let infoRows = 0;
+    if (selectedClient){
+      ws.insertRow(1, ['Cliente:', selectedClient.name + ' (' + selectedClient.code + ')']);
+      ws.getRow(1).font = { bold: true };
+      infoRows++;
+    }
+    if (vigencia){
+      ws.insertRow(infoRows + 1, ['Vigente hasta:', vigencia]);
+      ws.getRow(infoRows + 1).font = { bold: true };
+      infoRows++;
+    }
+    ws.insertRow(infoRows + 1, ['Escriba la cantidad a pedir en "Cantidad pedido"; el total de cada línea se calcula solo.']);
+    infoRows++;
+    if (infoRows > 0){ ws.insertRow(infoRows + 1, []); infoRows++; }
+    const headerRowIdx = infoRows + 1;
+    ws.getRow(headerRowIdx).font = { bold: true };
+
+    const groups = groupLines(lines, agrupar);
+    let rowIdx = headerRowIdx;
+    const dataRowIdxs = [];
+    for (const g of groups){
+      if (g.nombre){
+        rowIdx++;
+        ws.getRow(rowIdx).values = [g.nombre];
+        ws.getRow(rowIdx).font = { bold: true };
+        ws.mergeCells(rowIdx, 1, rowIdx, 10);
+        ws.getRow(rowIdx).eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFF2F6' } }; });
+      }
+      for (const l of g.items){
+        rowIdx++;
+        dataRowIdxs.push(rowIdx);
+        const row = ws.getRow(rowIdx);
+        row.getCell('codigo').value = l.codigo;
+        row.getCell('desc').value = l.desc;
+        row.getCell('marca').value = l.marca;
+        row.getCell('precio').value = l.price;
+        row.getCell('precioEmpaque').value = l.precioEmpaque;
+        row.getCell('empaque').value = l.factorVenta;
+        row.getCell('pedido').value = null;
+        row.getCell('pedido').protection = { locked: false };
+        // Fórmula: paquetes completos a precio de empaque + lo que sobra a precio unitario.
+        row.getCell('total').value = {
+          formula: `IF(H${rowIdx}="","",INT(H${rowIdx}/G${rowIdx})*F${rowIdx}+MOD(H${rowIdx},G${rowIdx})*E${rowIdx})`
+        };
+        row.getCell('promocion').value = l.promocion;
+        row.height = PHOTO_ROW_HEIGHT_PTS;
+
+        const photoUrl = getPhotoSrcBig(l.codigo);
+        if (photoUrl){
+          const dataUrl = await urlToBase64(photoUrl);
+          if (dataUrl){
+            const ext = dataUrl.startsWith('data:image/png') ? 'png' : 'jpeg';
+            const imgId = wb.addImage({ base64: dataUrl, extension: ext });
+            // Ancla la imagen al rango exacto de la celda "Foto" de esta fila (columna A),
+            // para que quede incrustada dentro de la celda en vez de flotando encima.
+            ws.addImage(imgId, {
+              tl: { col: 0.05, row: (rowIdx - 1) + 0.05 },
+              br: { col: 0.95, row: rowIdx - 0.05 },
+              editAs: 'oneCell'
+            });
+          }
+        }
+      }
+    }
+    if (dataRowIdxs.length){
+      rowIdx++;
+      ws.getRow(rowIdx).getCell('empaque').value = 'Total general';
+      ws.getRow(rowIdx).getCell('empaque').font = { bold: true };
+      const totalCell = ws.getRow(rowIdx).getCell('total');
+      totalCell.value = { formula: `SUM(I${dataRowIdxs[0]}:I${dataRowIdxs[dataRowIdxs.length - 1]})` };
+      totalCell.font = { bold: true };
+    }
+    // Protege toda la hoja salvo la columna "Cantidad pedido", para que solo esa se pueda editar.
+    await ws.protect('', { selectLockedCells: true, selectUnlockedCells: true });
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const safeName = (selectedClient ? selectedClient.name : 'lista').replace(/[^a-z0-9]+/gi,'_').slice(0,40);
+    a.download = `Lista_precios_${safeName}.xlsx`;
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('Excel generado ✓');
+  } catch (err){
+    console.error('Error generando Excel:', err);
+    alert('Ocurrió un error generando el Excel. Intenta de nuevo.');
+  } finally {
+    btn.disabled = false; btn.textContent = original;
+  }
+});
+
+/* ======================= Exportar a PDF (mismo formato que la cotización) ======================= */
+function nextPedidoNumero(){
+  let n = parseInt(localStorage.getItem('portalprecios_pedido_seq') || '0', 10) + 1;
+  if (!Number.isFinite(n) || n < 1) n = 1;
+  localStorage.setItem('portalprecios_pedido_seq', String(n));
+  return String(n).padStart(4, '0');
+}
+
+$('#btnExportPDF').addEventListener('click', async () => {
+  const lines = listLines();
+  if (!lines.length) return;
+  const btn = $('#btnExportPDF');
+  const original = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Generando...';
+  try {
+    const agrupar = $('#agruparPor').value;
+    const vigencia = formatVigencia();
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const marginX = 14;
+    const rightX = pageW - marginX;
+    const BLUE = [22, 50, 74]; // var(--navy)
+
+    const now = new Date();
+    const fecha = now.toLocaleDateString('es-VE');
+    const hora = now.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' });
+    const pedidoNumero = nextPedidoNumero();
+
+    // Marca de agua con el nombre del cliente, en cada página (desalienta que la lista circule).
+    function drawWatermark(){
+      if (!selectedClient) return;
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(42);
+      doc.setTextColor(236, 238, 241);
+      doc.text(selectedClient.name, pageW / 2, pageH / 2, { align: 'center', angle: 35 });
+    }
+    drawWatermark();
+
+    function drawHeader(){
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(20);
+      doc.setTextColor(20, 24, 33);
+      doc.text('Pedido sugerido', rightX, 20, { align: 'right' });
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(70, 75, 85);
+      doc.text('Nro. ' + pedidoNumero, rightX, 27, { align: 'right' });
+      doc.text('Fecha: ' + fecha, rightX, 32, { align: 'right' });
+      doc.text('Hora: ' + hora, rightX, 37, { align: 'right' });
+
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(16);
+      doc.setTextColor(...BLUE);
+      doc.text('Portal de Precios', marginX, 20);
+    }
+
+    drawHeader();
+
+    const totalGeneral = lines.reduce((a,l) => a + l.subtotal, 0);
+    let y = 48;
+    doc.setFillColor(...BLUE);
+    doc.roundedRect(marginX, y, rightX - marginX, 22, 2, 2, 'F');
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(255, 255, 255);
+    doc.text('Total pedido sugerido', marginX + 6, y + 8);
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(18);
+    doc.text(money(totalGeneral), marginX + 6, y + 17);
+    y += 22 + 10;
+
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...BLUE);
+    doc.text('Datos del cliente', marginX, y);
+    y += 6;
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(20, 24, 33);
+    doc.text(selectedClient ? selectedClient.name : '—', marginX, y);
+    y += 5;
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(40, 44, 52);
+    doc.text('Código: ' + (selectedClient ? selectedClient.code : '—'), marginX, y);
+    y += 5;
+    if (vigencia){
+      doc.text('Vigente hasta: ' + vigencia, marginX, y);
+      y += 5;
+    }
+    y += 3;
+
+    const groups = groupLines(lines, agrupar);
+    const flatEntries = [];
+    groups.forEach(g => {
+      if (g.nombre) flatEntries.push({ type: 'group', nombre: g.nombre });
+      g.items.forEach(l => flatEntries.push({ type: 'item', line: l }));
+    });
+    const rows = flatEntries.map(e => e.type === 'group'
+      ? [{ content: e.nombre, colSpan: 6, styles: { fontStyle: 'bold', fillColor: [240, 242, 245], textColor: [37, 35, 38] } }]
+      : ['', e.line.desc + '\nCódigo: ' + e.line.codigo + (e.line.marca ? '\nMarca: ' + e.line.marca : ''),
+         String(e.line.qty), money(e.line.price), money(e.line.precioEmpaque), money(e.line.subtotal)]
+    );
+    const imgColW = 20;
+    const imgRows = await Promise.all(flatEntries.map(async e => {
+      if (e.type !== 'item') return null;
+      const src = getPhotoSrcBig(e.line.codigo);
+      return src ? await urlToBase64(src) : null;
+    }));
+
+    function drawContinuationHeader(){
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(40, 44, 52);
+      doc.text('Pedido sugerido ' + pedidoNumero + (selectedClient ? ' — ' + selectedClient.name : ''), marginX, 14);
+    }
+    function drawPageFooter(data){
+      if (data.pageNumber > 1){ drawWatermark(); drawContinuationHeader(); }
+      const footY = doc.internal.pageSize.getHeight() - 12;
+      doc.setDrawColor(222, 226, 230);
+      doc.setLineWidth(0.3);
+      doc.line(marginX, footY - 5, rightX, footY - 5);
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(140, 145, 155);
+      const footText = 'Precios y cantidades sujetas a cambio sin previo aviso · Precios no incluyen IVA' + (vigencia ? ' · Vigente hasta ' + vigencia : '');
+      doc.text(footText, pageW / 2, footY, { align: 'center' });
+    }
+
+    doc.autoTable({
+      startY: y,
+      head: [['Imagen', 'Artículo', 'Cantidad empaque', 'Precio Unitario', 'Precio Empaque', 'Subtotal']],
+      body: rows,
+      theme: 'plain',
+      styles: { fontSize: 9, cellPadding: { top: 4, bottom: 4, left: 3, right: 3 }, lineWidth: { bottom: 0.2 }, lineColor: [222, 226, 230], minCellHeight: 20, valign: 'middle' },
+      headStyles: { fillColor: [240, 242, 245], textColor: [90, 95, 105], fontStyle: 'bold', lineWidth: 0, cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 }, minCellHeight: 0 },
+      columnStyles: {
+        0: { cellWidth: imgColW },
+        2: { cellWidth: 20, halign: 'right' },
+        3: { cellWidth: 26, halign: 'right' },
+        4: { cellWidth: 26, halign: 'right' },
+        5: { cellWidth: 26, halign: 'right' }
+      },
+      didParseCell: function(data){ if ([2,3,4,5].includes(data.column.index)) data.cell.styles.halign = 'right'; },
+      margin: { top: 16, left: marginX, right: marginX, bottom: 18 },
+      didDrawCell: function(data){
+        if (data.column.index === 0 && data.cell.section === 'body'){
+          const src = imgRows[data.row.index];
+          if (src){
+            const pad = 2;
+            const size = Math.min(data.cell.width - pad * 2, data.cell.height - pad * 2);
+            const x = data.cell.x + (data.cell.width - size) / 2;
+            const yImg = data.cell.y + (data.cell.height - size) / 2;
+            const formato = src.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+            try { doc.addImage(src, formato, x, yImg, size, size); } catch (e) { /* ignora fotos con formato inesperado */ }
+          }
+        }
+      },
+      didDrawPage: drawPageFooter
+    });
+
+    let nextY = doc.lastAutoTable.finalY + 10;
+    if (nextY + 14 > doc.internal.pageSize.getHeight() - 20){ doc.addPage(); nextY = 24; }
+    doc.setFillColor(...BLUE);
+    doc.roundedRect(marginX, nextY, rightX - marginX, 12, 1.5, 1.5, 'F');
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(255, 255, 255);
+    doc.text('Total $', marginX + 5, nextY + 8);
+    doc.text(money(totalGeneral), rightX - 5, nextY + 8, { align: 'right' });
+
+    const safeName = (selectedClient ? selectedClient.name : 'lista').replace(/[^a-z0-9]+/gi, '_').slice(0, 40);
+    doc.save(`Pedido_sugerido_${pedidoNumero}_${safeName}.pdf`);
+    toast('PDF generado ✓');
+  } catch (err){
+    console.error('Error generando el PDF:', err);
+    alert('Ocurrió un error generando el PDF. Intenta de nuevo.');
+  } finally {
+    btn.disabled = false; btn.textContent = original;
+  }
+});
+
+/* ======================= Carga inicial ======================= */
+const DEFAULT_CLIENT_CODE = '25-10-718';
+
+async function init(){
+  try {
+    const [articulosCsv, clientesCsv] = await Promise.all([
+      fetchFirstWorking(ARTICULOS_URLS),
+      fetchFirstWorking(CLIENTES_URLS)
+    ]);
+    PRODUCTS = buildProducts(articulosCsv);
+    CLIENTS = buildClients(clientesCsv);
+    renderAllFilterGroups();
+    const defaultClient = CLIENTS.find(c => c.code === DEFAULT_CLIENT_CODE);
+    if (defaultClient) selectClient(defaultClient);
+    else renderTable();
+  } catch (err){
+    console.error('Error cargando catálogo/clientes:', err);
+    $('#resultCount').textContent = 'No se pudo cargar el catálogo. Verifica tu conexión y recarga la página.';
+  }
+
+  try {
+    const photoCsv = await fetchFirstWorking([PHOTO_INDEX_URL]);
+    DRIVE_IDS = buildDriveIndex(photoCsv);
+    renderTable();
+  } catch (err){
+    console.error('No se pudo cargar el índice de fotos:', err);
+  }
+}
+init();
+
+// Vigencia por defecto: 30 días a partir de hoy
+(function setDefaultVigencia(){
+  const d = new Date();
+  d.setDate(d.getDate() + 30);
+  const iso = d.toISOString().slice(0, 10);
+  const el = $('#vigenteHasta');
+  if (el) el.value = iso;
+})();
+</script>
+</body>
+</html>
