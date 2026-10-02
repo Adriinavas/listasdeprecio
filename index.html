@@ -803,7 +803,7 @@ async function urlToBase64(url){
 
 const PHOTO_COL_WIDTH_CHARS = 18; // ancho de la columna "Foto"
 const PHOTO_ROW_HEIGHT_PTS = 85; // alto de fila para cada línea de producto (holgado a propósito)
-const PHOTO_MAX_PX = 58; // tamaño máximo (ancho y alto) de la foto en píxeles, fijo y conservador
+const PHOTO_MAX_PX = 42; // tamaño máximo (ancho y alto) de la foto en píxeles, fijo y conservador
 
 // Mide el ancho/alto real de una imagen (con límite de tiempo, por si falla la decodificación)
 function getImageNaturalSize(dataUrl){
@@ -873,7 +873,7 @@ $('#btnExportExcel').addEventListener('click', async () => {
       ws.getRow(infoRows + 1).font = { bold: true };
       infoRows++;
     }
-    ws.insertRow(infoRows + 1, ['Escriba la cantidad a pedir en "Cantidad pedido"; el total de cada línea se calcula solo.']);
+    ws.insertRow(infoRows + 1, ['Escriba la cantidad a pedir en "Cantidad pedido" (el total de cada línea se calcula solo), o elimine la fila del producto que no desee incluir.']);
     infoRows++;
     if (infoRows > 0){ ws.insertRow(infoRows + 1, []); infoRows++; }
     const headerRowIdx = infoRows + 1;
@@ -901,7 +901,6 @@ $('#btnExportExcel').addEventListener('click', async () => {
         row.getCell('precioEmpaque').value = l.precioEmpaque;
         row.getCell('empaque').value = l.factorVenta;
         row.getCell('pedido').value = null;
-        row.getCell('pedido').protection = { locked: false };
         // Fórmula: paquetes completos a precio de empaque + lo que sobra a precio unitario.
         row.getCell('total').value = {
           formula: `IF(H${rowIdx}="","",INT(H${rowIdx}/G${rowIdx})*F${rowIdx}+MOD(H${rowIdx},G${rowIdx})*E${rowIdx})`
@@ -932,8 +931,8 @@ $('#btnExportExcel').addEventListener('click', async () => {
       totalCell.value = { formula: `SUM(I${dataRowIdxs[0]}:I${dataRowIdxs[dataRowIdxs.length - 1]})` };
       totalCell.font = { bold: true };
     }
-    // Protege toda la hoja salvo la columna "Cantidad pedido", para que solo esa se pueda editar.
-    await ws.protect('', { selectLockedCells: true, selectUnlockedCells: true, deleteRows: true, formatRows: true });
+    // Sin protección: así se pueden borrar filas de productos libremente (Excel no permite
+    // borrar filas con celdas bloqueadas, ni activando el permiso "Eliminar filas").
 
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
