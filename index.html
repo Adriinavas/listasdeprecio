@@ -818,7 +818,9 @@ function getImageNaturalSize(dataUrl){
 }
 
 // Calcula el anclaje de la imagen dentro de la celda tipo "contener" (como object-fit:contain):
-// la escala y centra sin deformarla, dejando el sobrante como margen parejo a los lados.
+// se le da un tamaño explícito en píxeles (ext) calculado a partir de su proporción real, para
+// que nunca se deforme — a diferencia de pedirle a Excel que la "estire" hasta un rango de celda,
+// que no siempre respeta el ancho real de una columna personalizada.
 function computePhotoAnchor(natW, natH, rowIdx){
   const colWidthPx = PHOTO_COL_WIDTH_CHARS * 7 + 5;
   const rowHeightPx = PHOTO_ROW_HEIGHT_PTS * (96 / 72);
@@ -826,12 +828,12 @@ function computePhotoAnchor(natW, natH, rowIdx){
   const usableW = Math.max(10, colWidthPx - pad * 2);
   const usableH = Math.max(10, rowHeightPx - pad * 2);
   const scale = Math.min(usableW / natW, usableH / natH);
-  const scaledW = natW * scale, scaledH = natH * scale;
-  const fracX = Math.max(0, Math.min(0.49, (colWidthPx - scaledW) / 2 / colWidthPx));
-  const fracY = Math.max(0, Math.min(0.49, (rowHeightPx - scaledH) / 2 / rowHeightPx));
+  const extW = natW * scale, extH = natH * scale;
+  const fracX = Math.max(0, Math.min(0.49, (colWidthPx - extW) / 2 / colWidthPx));
+  const fracY = Math.max(0, Math.min(0.49, (rowHeightPx - extH) / 2 / rowHeightPx));
   return {
     tl: { col: fracX, row: (rowIdx - 1) + fracY },
-    br: { col: 1 - fracX, row: rowIdx - fracY }
+    ext: { width: extW, height: extH }
   };
 }
 
@@ -922,7 +924,7 @@ $('#btnExportExcel').addEventListener('click', async () => {
             const anchor = computePhotoAnchor(natW, natH, rowIdx);
             // Ancla la imagen centrada dentro de la celda, escalada sin deformar
             // (como object-fit:contain), en vez de estirarla para llenar la celda.
-            ws.addImage(imgId, { tl: anchor.tl, br: anchor.br, editAs: 'twoCell' });
+            ws.addImage(imgId, { tl: anchor.tl, ext: anchor.ext, editAs: 'oneCell' });
           }
         }
       }
@@ -936,7 +938,7 @@ $('#btnExportExcel').addEventListener('click', async () => {
       totalCell.font = { bold: true };
     }
     // Protege toda la hoja salvo la columna "Cantidad pedido", para que solo esa se pueda editar.
-    await ws.protect('', { selectLockedCells: true, selectUnlockedCells: true });
+    await ws.protect('', { selectLockedCells: true, selectUnlockedCells: true, deleteRows: true, formatRows: true });
 
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
