@@ -819,16 +819,21 @@ function getImageNaturalSize(dataUrl){
 }
 
 // Calcula el anclaje de la imagen dentro de la celda tipo "contener" (como object-fit:contain):
-// se le da un tamaño explícito y fijo en píxeles (nunca mayor a PHOTO_MAX_PX), calculado a partir
-// de su proporción real para que no se deforme. Se usa un tope fijo pequeño (en vez de calcular
-// el ancho/alto exactos de la columna y la fila) para garantizar que, pase lo que pase, la foto
-// quepa de sobra dentro de la celda y nunca se monte sobre la fila de abajo.
+// se calcula un tamaño fijo y pequeño (nunca mayor a PHOTO_MAX_PX) a partir de su proporción real
+// para que no se deforme, y se ancla como rango de celda ("twoCell") — no solo una posición
+// flotante — para que Excel la borre junto con su fila cuando se elimine (a diferencia de un
+// anclaje de una sola celda, que solo se mueve pero no desaparece al borrar la fila).
 function computePhotoAnchor(natW, natH, rowIdx){
+  const colWidthPx = PHOTO_COL_WIDTH_CHARS * 7 + 5;
+  const rowHeightPx = PHOTO_ROW_HEIGHT_PTS * (96 / 72);
   const scale = Math.min(PHOTO_MAX_PX / natW, PHOTO_MAX_PX / natH);
   const extW = natW * scale, extH = natH * scale;
+  const fracW = extW / colWidthPx;
+  const fracH = extH / rowHeightPx;
+  const tlCol = 0.08, tlRow = (rowIdx - 1) + 0.08;
   return {
-    tl: { col: 0.08, row: (rowIdx - 1) + 0.08 },
-    ext: { width: extW, height: extH }
+    tl: { col: tlCol, row: tlRow },
+    br: { col: tlCol + fracW, row: tlRow + fracH }
   };
 }
 
@@ -918,7 +923,7 @@ $('#btnExportExcel').addEventListener('click', async () => {
             const anchor = computePhotoAnchor(natW, natH, rowIdx);
             // Ancla la imagen centrada dentro de la celda, escalada sin deformar
             // (como object-fit:contain), en vez de estirarla para llenar la celda.
-            ws.addImage(imgId, { tl: anchor.tl, ext: anchor.ext, editAs: 'oneCell' });
+            ws.addImage(imgId, { tl: anchor.tl, br: anchor.br, editAs: 'twoCell' });
           }
         }
       }
