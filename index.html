@@ -127,6 +127,9 @@ td.num{text-align:right}
 .list-total{display:flex;justify-content:space-between;font-weight:700;font-size:16px;margin-bottom:12px}
 .btn-primary{width:100%;padding:12px;background:var(--gold);color:#fff;border:0;border-radius:var(--radius);font-weight:700;font-size:14.5px;cursor:pointer}
 .list-footer .btn-primary{flex:1;width:auto}
+.genOptions{display:flex;gap:10px;margin-bottom:12px}
+.genOptions label{flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mut);font-weight:600}
+.genOptions select,.genOptions input{padding:7px 8px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:13px;color:var(--ink)}
 .btn-primary:disabled{background:var(--border-strong);cursor:not-allowed}
 .btn-primary:hover:not(:disabled){background:var(--gold-dark)}
 
@@ -223,6 +226,18 @@ td.num{text-align:right}
   <div class="list-items" id="listItems"><div class="list-empty">Aún no has agregado productos.</div></div>
   <div class="list-footer">
     <div class="list-total"><span>Total</span><span id="listTotal">$0.00</span></div>
+    <div class="genOptions">
+      <label>Agrupar por
+        <select id="agruparPor">
+          <option value="none">Sin agrupar</option>
+          <option value="categoria">Categoría</option>
+          <option value="marca">Marca</option>
+        </select>
+      </label>
+      <label>Vigente hasta
+        <input type="date" id="vigenteHasta">
+      </label>
+    </div>
     <div style="display:flex;gap:10px">
       <button class="btn-primary" id="btnExportExcel" disabled style="background:var(--navy)">Generar Excel</button>
       <button class="btn-primary" id="btnExportPDF" disabled>Generar PDF</button>
@@ -659,8 +674,21 @@ function listLines(){
     // Precio de empaque provisional: precio unitario × unidades del empaque (sin descuento),
     // mientras no conectemos la base de descuentos por volumen.
     const precioEmpaque = price * p.factorVenta;
-    return { codigo, desc: p.descripcion, marca: p.marca, qty, price, precioEmpaque, subtotal: price * qty, factorVenta: p.factorVenta, promocion: p.promocion || '' };
+    return { codigo, desc: p.descripcion, marca: p.marca, categoria: p.categoria, qty, price, precioEmpaque, subtotal: price * qty, factorVenta: p.factorVenta, promocion: p.promocion || '' };
   }).filter(Boolean);
+}
+
+// Agrupa las líneas por categoría o marca (o las deja en un solo bloque si no se pidió agrupar)
+function groupLines(lines, mode){
+  if (mode !== 'categoria' && mode !== 'marca') return [{ nombre: null, items: lines }];
+  const groups = {};
+  const order = [];
+  lines.forEach(l => {
+    const key = mode === 'categoria' ? (l.categoria || 'Sin categoría') : (l.marca || 'Sin marca');
+    if (!groups[key]){ groups[key] = []; order.push(key); }
+    groups[key].push(l);
+  });
+  return order.map(nombre => ({ nombre, items: groups[nombre] }));
 }
 
 function updateListUI(){
@@ -776,6 +804,13 @@ async function urlToBase64(url){
 const PHOTO_COL_WIDTH_CHARS = 14; // ancho de la columna "Foto"
 const PHOTO_ROW_HEIGHT_PTS = 45; // alto de fila para cada línea de producto
 
+function formatVigencia(){
+  const v = $('#vigenteHasta').value;
+  if (!v) return '';
+  const [y,m,d] = v.split('-');
+  return d + '/' + m + '/' + y;
+}
+
 $('#btnExportExcel').addEventListener('click', async () => {
   const lines = listLines();
   if (!lines.length) return;
@@ -783,6 +818,8 @@ $('#btnExportExcel').addEventListener('click', async () => {
   const original = btn.textContent;
   btn.disabled = true; btn.textContent = 'Generando...';
   try {
+    const agrupar = $('#agruparPor').value;
+    const vigencia = formatVigencia();
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Lista de precios');
     ws.columns = [
@@ -794,39 +831,84 @@ $('#btnExportExcel').addEventListener('click', async () => {
       { header: 'Precio empaque', key: 'precioEmpaque', width: 15 },
       { header: 'Cantidad empaque', key: 'empaque', width: 16 },
       { header: 'Cantidad pedido', key: 'pedido', width: 16 },
+      { header: 'Total línea', key: 'total', width: 16 },
       { header: 'Promoción', key: 'promocion', width: 36 }
     ];
-    ws.getRow(1).font = { bold: true };
+    let infoRows = 0;
     if (selectedClient){
       ws.insertRow(1, ['Cliente:', selectedClient.name + ' (' + selectedClient.code + ')']);
-      ws.insertRow(2, []);
       ws.getRow(1).font = { bold: true };
+      infoRows++;
     }
-    const headerRowIdx = selectedClient ? 3 : 1;
+    if (vigencia){
+      ws.insertRow(infoRows + 1, ['Vigente hasta:', vigencia]);
+      ws.getRow(infoRows + 1).font = { bold: true };
+      infoRows++;
+    }
+    ws.insertRow(infoRows + 1, ['Escriba la cantidad a pedir en "Cantidad pedido"; el total de cada línea se calcula solo.']);
+    infoRows++;
+    if (infoRows > 0){ ws.insertRow(infoRows + 1, []); infoRows++; }
+    const headerRowIdx = infoRows + 1;
     ws.getRow(headerRowIdx).font = { bold: true };
 
-    for (let i = 0; i < lines.length; i++){
-      const l = lines[i];
-      const rowIdx = headerRowIdx + 1 + i;
-      ws.getRow(rowIdx).values = { codigo: l.codigo, desc: l.desc, marca: l.marca, precio: l.price, precioEmpaque: l.precioEmpaque, empaque: l.factorVenta, pedido: null, promocion: l.promocion };
-      ws.getRow(rowIdx).height = PHOTO_ROW_HEIGHT_PTS;
+    const groups = groupLines(lines, agrupar);
+    let rowIdx = headerRowIdx;
+    const dataRowIdxs = [];
+    for (const g of groups){
+      if (g.nombre){
+        rowIdx++;
+        ws.getRow(rowIdx).values = [g.nombre];
+        ws.getRow(rowIdx).font = { bold: true };
+        ws.mergeCells(rowIdx, 1, rowIdx, 10);
+        ws.getRow(rowIdx).eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFF2F6' } }; });
+      }
+      for (const l of g.items){
+        rowIdx++;
+        dataRowIdxs.push(rowIdx);
+        const row = ws.getRow(rowIdx);
+        row.getCell('codigo').value = l.codigo;
+        row.getCell('desc').value = l.desc;
+        row.getCell('marca').value = l.marca;
+        row.getCell('precio').value = l.price;
+        row.getCell('precioEmpaque').value = l.precioEmpaque;
+        row.getCell('empaque').value = l.factorVenta;
+        row.getCell('pedido').value = null;
+        row.getCell('pedido').protection = { locked: false };
+        // Fórmula: paquetes completos a precio de empaque + lo que sobra a precio unitario.
+        row.getCell('total').value = {
+          formula: `IF(H${rowIdx}="","",INT(H${rowIdx}/G${rowIdx})*F${rowIdx}+MOD(H${rowIdx},G${rowIdx})*E${rowIdx})`
+        };
+        row.getCell('promocion').value = l.promocion;
+        row.height = PHOTO_ROW_HEIGHT_PTS;
 
-      const photoUrl = getPhotoSrcBig(l.codigo);
-      if (photoUrl){
-        const dataUrl = await urlToBase64(photoUrl);
-        if (dataUrl){
-          const ext = dataUrl.startsWith('data:image/png') ? 'png' : 'jpeg';
-          const imgId = wb.addImage({ base64: dataUrl, extension: ext });
-          // Ancla la imagen al rango exacto de la celda "Foto" de esta fila (columna A),
-          // para que quede incrustada dentro de la celda en vez de flotando encima.
-          ws.addImage(imgId, {
-            tl: { col: 0.05, row: (rowIdx - 1) + 0.05 },
-            br: { col: 0.95, row: rowIdx - 0.05 },
-            editAs: 'oneCell'
-          });
+        const photoUrl = getPhotoSrcBig(l.codigo);
+        if (photoUrl){
+          const dataUrl = await urlToBase64(photoUrl);
+          if (dataUrl){
+            const ext = dataUrl.startsWith('data:image/png') ? 'png' : 'jpeg';
+            const imgId = wb.addImage({ base64: dataUrl, extension: ext });
+            // Ancla la imagen al rango exacto de la celda "Foto" de esta fila (columna A),
+            // para que quede incrustada dentro de la celda en vez de flotando encima.
+            ws.addImage(imgId, {
+              tl: { col: 0.05, row: (rowIdx - 1) + 0.05 },
+              br: { col: 0.95, row: rowIdx - 0.05 },
+              editAs: 'oneCell'
+            });
+          }
         }
       }
     }
+    if (dataRowIdxs.length){
+      rowIdx++;
+      ws.getRow(rowIdx).getCell('empaque').value = 'Total general';
+      ws.getRow(rowIdx).getCell('empaque').font = { bold: true };
+      const totalCell = ws.getRow(rowIdx).getCell('total');
+      totalCell.value = { formula: `SUM(I${dataRowIdxs[0]}:I${dataRowIdxs[dataRowIdxs.length - 1]})` };
+      totalCell.font = { bold: true };
+    }
+    // Protege toda la hoja salvo la columna "Cantidad pedido", para que solo esa se pueda editar.
+    await ws.protect('', { selectLockedCells: true, selectUnlockedCells: true });
+
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const a = document.createElement('a');
@@ -858,9 +940,12 @@ $('#btnExportPDF').addEventListener('click', async () => {
   const original = btn.textContent;
   btn.disabled = true; btn.textContent = 'Generando...';
   try {
+    const agrupar = $('#agruparPor').value;
+    const vigencia = formatVigencia();
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
     const marginX = 14;
     const rightX = pageW - marginX;
     const BLUE = [22, 50, 74]; // var(--navy)
@@ -869,6 +954,16 @@ $('#btnExportPDF').addEventListener('click', async () => {
     const fecha = now.toLocaleDateString('es-VE');
     const hora = now.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' });
     const pedidoNumero = nextPedidoNumero();
+
+    // Marca de agua con el nombre del cliente, en cada página (desalienta que la lista circule).
+    function drawWatermark(){
+      if (!selectedClient) return;
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(42);
+      doc.setTextColor(236, 238, 241);
+      doc.text(selectedClient.name, pageW / 2, pageH / 2, { align: 'center', angle: 35 });
+    }
+    drawWatermark();
 
     function drawHeader(){
       doc.setFont(undefined, 'bold');
@@ -917,15 +1012,28 @@ $('#btnExportPDF').addEventListener('click', async () => {
     doc.setFontSize(10);
     doc.setTextColor(40, 44, 52);
     doc.text('Código: ' + (selectedClient ? selectedClient.code : '—'), marginX, y);
-    y += 8;
+    y += 5;
+    if (vigencia){
+      doc.text('Vigente hasta: ' + vigencia, marginX, y);
+      y += 5;
+    }
+    y += 3;
 
-    const rows = lines.map(l => [
-      '', l.desc + '\nCódigo: ' + l.codigo + (l.marca ? '\nMarca: ' + l.marca : ''),
-      String(l.qty), money(l.price), money(l.precioEmpaque), money(l.subtotal)
-    ]);
+    const groups = groupLines(lines, agrupar);
+    const flatEntries = [];
+    groups.forEach(g => {
+      if (g.nombre) flatEntries.push({ type: 'group', nombre: g.nombre });
+      g.items.forEach(l => flatEntries.push({ type: 'item', line: l }));
+    });
+    const rows = flatEntries.map(e => e.type === 'group'
+      ? [{ content: e.nombre, colSpan: 6, styles: { fontStyle: 'bold', fillColor: [240, 242, 245], textColor: [37, 35, 38] } }]
+      : ['', e.line.desc + '\nCódigo: ' + e.line.codigo + (e.line.marca ? '\nMarca: ' + e.line.marca : ''),
+         String(e.line.qty), money(e.line.price), money(e.line.precioEmpaque), money(e.line.subtotal)]
+    );
     const imgColW = 20;
-    const imgRows = await Promise.all(lines.map(async l => {
-      const src = getPhotoSrcBig(l.codigo);
+    const imgRows = await Promise.all(flatEntries.map(async e => {
+      if (e.type !== 'item') return null;
+      const src = getPhotoSrcBig(e.line.codigo);
       return src ? await urlToBase64(src) : null;
     }));
 
@@ -936,7 +1044,7 @@ $('#btnExportPDF').addEventListener('click', async () => {
       doc.text('Pedido sugerido ' + pedidoNumero + (selectedClient ? ' — ' + selectedClient.name : ''), marginX, 14);
     }
     function drawPageFooter(data){
-      if (data.pageNumber > 1) drawContinuationHeader();
+      if (data.pageNumber > 1){ drawWatermark(); drawContinuationHeader(); }
       const footY = doc.internal.pageSize.getHeight() - 12;
       doc.setDrawColor(222, 226, 230);
       doc.setLineWidth(0.3);
@@ -944,7 +1052,8 @@ $('#btnExportPDF').addEventListener('click', async () => {
       doc.setFont(undefined, 'normal');
       doc.setFontSize(8.5);
       doc.setTextColor(140, 145, 155);
-      doc.text('Precios y cantidades sujetas a cambio sin previo aviso · Precios no incluyen IVA', pageW / 2, footY, { align: 'center' });
+      const footText = 'Precios y cantidades sujetas a cambio sin previo aviso · Precios no incluyen IVA' + (vigencia ? ' · Vigente hasta ' + vigencia : '');
+      doc.text(footText, pageW / 2, footY, { align: 'center' });
     }
 
     doc.autoTable({
@@ -1029,6 +1138,15 @@ async function init(){
   }
 }
 init();
+
+// Vigencia por defecto: 30 días a partir de hoy
+(function setDefaultVigencia(){
+  const d = new Date();
+  d.setDate(d.getDate() + 30);
+  const iso = d.toISOString().slice(0, 10);
+  const el = $('#vigenteHasta');
+  if (el) el.value = iso;
+})();
 </script>
 </body>
 </html>
