@@ -126,7 +126,8 @@ button{font-family:inherit}
 .clearIconBtn:hover{background:var(--bg);border-color:var(--mut)}
 
 .main{flex:1;min-width:0;padding:16px 22px 100px}
-.resultBar{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.resultBar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border:1px solid var(--border-strong);border-radius:10px;padding:10px 14px;margin-bottom:14px}
+.resultLeft{display:flex;align-items:center;gap:14px;min-width:0}
 .resultBar .count{font-size:13px;color:var(--mut)}
 
 table.cat{width:100%;border-collapse:collapse;background:var(--card);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
@@ -201,6 +202,7 @@ table.cat .btn-add{font-size:16px}
   .sidebar.open{display:block;position:fixed;top:0;left:0;bottom:0;width:82%;max-width:300px;z-index:50;height:100vh;box-shadow:2px 0 20px rgba(0,0,0,.2)}
   .filterToggle{display:inline-flex !important}
   .gridWrap{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .resultBar{flex-wrap:wrap}
   .gstats{grid-template-columns:1fr}
   .gdesc{height:5.2em;-webkit-line-clamp:4}
   .gimg{height:130px}
@@ -298,14 +300,14 @@ table.cat .btn-add{font-size:16px}
 
   <main class="main">
     <div class="resultBar">
-      <span class="count" id="resultCount">Cargando catálogo…</span>
-      <div style="display:flex;align-items:center;gap:10px">
+      <div class="resultLeft">
         <div class="viewToggle" id="viewToggle">
           <button class="vt-btn active" data-view="tabla" title="Vista de lista" aria-label="Vista de lista"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
           <button class="vt-btn" data-view="cuadricula" title="Vista de cuadrícula" aria-label="Vista de cuadrícula"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="4" width="6.5" height="6.5" rx="1"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1"/></svg></button>
         </div>
-        <button class="btn-add" id="btnAddAllSelected" disabled>Agregar todo (0)</button>
+        <span class="count" id="resultCount">Cargando catálogo…</span>
       </div>
+      <button class="btn-add" id="btnAddAllSelected" disabled>Agregar todo (0)</button>
     </div>
     <div id="tableWrap">
       <table class="cat">
