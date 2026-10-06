@@ -1036,22 +1036,21 @@ function getImageNaturalSize(dataUrl){
   });
 }
 
-// Calcula el anclaje de la imagen dentro de la celda tipo "contener" (como object-fit:contain):
-// se calcula un tamaño fijo y pequeño (nunca mayor a PHOTO_MAX_PX) a partir de su proporción real
-// para que no se deforme, y se ancla como rango de celda ("twoCell") — no solo una posición
-// flotante — para que Excel la borre junto con su fila cuando se elimine (a diferencia de un
-// anclaje de una sola celda, que solo se mueve pero no desaparece al borrar la fila).
+// Anclaje de la foto dentro de la celda "Foto" de su fila.
+// - Tamaño: la foto se escala a un máximo fijo (PHOTO_MAX_PX) conservando su proporción real, así no se deforma.
+// - Posición: se da en medidas nativas de Excel (EMU, 1 px = 9525 EMU) dentro de UNA sola celda. Se evita
+//   usar fracciones de celda (col: 0.3, row: 5.2), porque ExcelJS las convierte con sus propias medidas de
+//   columna/fila y la foto sale como una tira angosta.
+// - Anclaje de rango ("mover y cambiar de tamaño con las celdas"): así Excel borra la foto junto con su fila.
+const EMU_POR_PX = 9525;
+const PHOTO_INSET_X_PX = 4, PHOTO_INSET_Y_PX = 7; // pequeño margen desde la esquina superior izquierda de la celda
 function computePhotoAnchor(natW, natH, rowIdx){
-  const colWidthPx = PHOTO_COL_WIDTH_CHARS * 7 + 5;
-  const rowHeightPx = PHOTO_ROW_HEIGHT_PTS * (96 / 72);
   const scale = Math.min(PHOTO_MAX_PX / natW, PHOTO_MAX_PX / natH);
   const extW = natW * scale, extH = natH * scale;
-  const fracW = extW / colWidthPx;
-  const fracH = extH / rowHeightPx;
-  const tlCol = 0.08, tlRow = (rowIdx - 1) + 0.08;
+  const emu = px => Math.round(px * EMU_POR_PX);
   return {
-    tl: { col: tlCol, row: tlRow },
-    br: { col: tlCol + fracW, row: tlRow + fracH }
+    tl: { nativeCol: 0, nativeColOff: emu(PHOTO_INSET_X_PX), nativeRow: rowIdx - 1, nativeRowOff: emu(PHOTO_INSET_Y_PX) },
+    br: { nativeCol: 0, nativeColOff: emu(PHOTO_INSET_X_PX + extW), nativeRow: rowIdx - 1, nativeRowOff: emu(PHOTO_INSET_Y_PX + extH) }
   };
 }
 
