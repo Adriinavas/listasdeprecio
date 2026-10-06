@@ -110,8 +110,8 @@ button{font-family:inherit}
 .crumbs span.sep{margin:0 10px;color:#666}
 
 /* ---- Layout principal ---- */
-.layout{display:flex;align-items:flex-start;gap:0}
-.sidebar{width:260px;flex:none;background:var(--card);border-right:1px solid var(--border);padding:16px;height:calc(100vh - 24px);overflow-y:auto;position:sticky;top:12px}
+.layout{display:flex;align-items:flex-start;gap:22px;padding:16px 22px 0}
+.sidebar{width:260px;flex:none;background:var(--card);border-radius:10px;box-shadow:var(--shadow);padding:16px;height:calc(100vh - 24px);overflow-y:auto;position:sticky;top:12px}
 .sidebar h3{font-size:16px;text-transform:none;letter-spacing:0;color:var(--mut);margin:18px 0 8px}
 .sidebar h3:first-child{margin-top:0}
 .filterSearch{width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:16px;margin-bottom:8px}
@@ -125,12 +125,12 @@ button{font-family:inherit}
 .clearIconBtn svg{width:18px;height:18px}
 .clearIconBtn:hover{background:var(--bg);border-color:var(--mut)}
 
-.main{flex:1;min-width:0;padding:16px 22px 100px}
-.resultBar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border:1px solid var(--border-strong);border-radius:10px;padding:10px 14px;margin-bottom:14px}
+.main{flex:1;min-width:0;padding:0 0 100px}
+.resultBar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border-radius:10px;box-shadow:var(--shadow);padding:10px 14px;margin-bottom:16px}
 .resultLeft{display:flex;align-items:center;gap:14px;min-width:0}
 .resultBar .count{font-size:13px;color:var(--mut)}
 
-table.cat{width:100%;border-collapse:collapse;background:var(--card);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+table.cat{width:100%;border-collapse:collapse;background:var(--card);border-radius:10px;overflow:hidden;box-shadow:var(--shadow)}
 table.cat thead th{background:#fff;text-align:left;font-size:16px;color:var(--mut);font-weight:700;padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap}
 table.cat thead th.num{text-align:right}
 table.cat tbody td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:middle;font-size:16px}
@@ -199,7 +199,8 @@ table.cat .btn-add{font-size:16px}
 
 @media(max-width:900px){
   .sidebar{display:none}
-  .sidebar.open{display:block;position:fixed;top:0;left:0;bottom:0;width:82%;max-width:300px;z-index:50;height:100vh;box-shadow:2px 0 20px rgba(0,0,0,.2)}
+  .sidebar.open{display:block;position:fixed;top:0;left:0;bottom:0;width:82%;max-width:300px;z-index:50;height:100vh;border-radius:0 10px 10px 0;box-shadow:2px 0 20px rgba(0,0,0,.2)}
+  .layout{padding:12px 14px 0;gap:0}
   .filterToggle{display:inline-flex !important}
   .gridWrap{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
   .resultBar{flex-wrap:wrap}
