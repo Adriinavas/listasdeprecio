@@ -112,13 +112,13 @@ button{font-family:inherit}
 /* ---- Layout principal ---- */
 .layout{display:flex;align-items:flex-start;gap:0}
 .sidebar{width:260px;flex:none;background:var(--card);border-right:1px solid var(--border);padding:16px;height:calc(100vh - 24px);overflow-y:auto;position:sticky;top:12px}
-.sidebar h3{font-size:16px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);margin:18px 0 8px}
+.sidebar h3{font-size:16px;text-transform:none;letter-spacing:0;color:var(--mut);margin:18px 0 8px}
 .sidebar h3:first-child{margin-top:0}
 .filterSearch{width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:16px;margin-bottom:8px}
 .filterGroup{max-height:210px;overflow-y:auto}
-.filterGroup label{display:flex;align-items:center;gap:7px;font-size:16px;padding:3px 0;cursor:pointer}
+.filterGroup label{display:flex;align-items:center;gap:7px;font-size:15px;padding:3px 0;cursor:pointer}
 .filterGroup input[type=checkbox]{flex:none}
-.filterGroup .fcount{color:var(--mut);font-size:16px;margin-left:auto}
+.filterGroup .fcount{color:var(--mut);font-size:14px;margin-left:auto}
 .filterHead{display:flex;align-items:center;justify-content:space-between;margin:0 0 8px}
 .filterHead h3{margin:0 !important}
 .clearIconBtn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid var(--border-strong);border-radius:8px;color:var(--mut);cursor:pointer;padding:0}
@@ -615,7 +615,7 @@ function renderFilterGroup(containerId, field, searchQ){
   el.innerHTML = entries.map(([name, count]) => {
     const isChecked = activeFilters[field].has(name);
     return `<label><input type="checkbox" data-field="${field}" value="${escAttr(name)}" ${isChecked?'checked':''}> ${name} <span class="fcount">${count}</span></label>`;
-  }).join('') || '<div style="color:var(--mut);font-size:16px">Sin resultados con los filtros actuales</div>';
+  }).join('') || '<div style="color:var(--mut);font-size:15px">Sin resultados con los filtros actuales</div>';
 }
 
 function renderAllFilterGroups(){
