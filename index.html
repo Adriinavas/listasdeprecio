@@ -430,12 +430,9 @@ const CLIENTES_URLS = [
   'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/gviz/tq?tqx=out:csv&gid=814469810',
   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQzqvFIW3UbGsp1mpVC3Q7RZXF85d_T6O7cpEIOt5czUq3JmVqvhMXPdvQosD81ui2f36n5Y79jPdTx/pub?gid=814469810&single=true&output=csv'
 ];
-// Índice de fotos de Drive (código -> ID del archivo). Se usa primero el enlace publicado vigente;
-// los anteriores quedan solo de respaldo por si el nuevo no responde.
+// Índice de fotos de Drive (Nombre limpio -> ID del archivo).
 const PHOTO_INDEX_URLS = [
-  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRU56TbGMC2dhEX_2Hzh94x2jO6oIuGERC9suUX5d9yoIqolqLJ9A2mtX6Q0xcBGaIsV3smPpqkKDRy/pub?gid=0&single=true&output=csv',
-  'https://docs.google.com/spreadsheets/d/e/2PACX-1vSfQLox_2ZqVgU9guMw7z29ITRwTlJgQzfVXTLJVw-NlI4aUtLxIAQGOuo1oMo3p_bzCHdFJlAF8U-7/pub?gid=1880400235&single=true&output=csv',
-  'https://docs.google.com/spreadsheets/d/1biAtWEcnP0OpIwMV6gJzv3dmEl5veQQmM7ba3u95szY/gviz/tq?tqx=out:csv&gid=0'
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRU56TbGMC2dhEX_2Hzh94x2jO6oIuGERC9suUX5d9yoIqolqLJ9A2mtX6Q0xcBGaIsV3smPpqkKDRy/pub?gid=0&single=true&output=csv'
 ];
 
 const PRICE_LIST_COLUMNS = ['ARAGUAB','BOLIVARCVM','CARABOBENA','EPA','FERREBOT','GRUPOPICO','LARAB','LICCIONI','LPARAGUA','LPLARA','LPMARGARITAB','LPMARGARITAD','MAYOREOB','MAYOREOD','MAYOREOEPA','MAYOREOL','PILOTO D','PORTAL PILOT','PORTALARAGUB','PORTALARAGUD','PORTALCONTB','PORTALCONTD','PORTALD','PORTALLARAB','PORTALLARAD'];
@@ -525,8 +522,10 @@ function buildClients(text){
 function buildDriveIndex(text){
   const rows = parseCSV(text);
   const header = rows[0].map(h => h.trim());
-  const iCodigo = header.indexOf('Nombre limpio') === -1 ? 1 : header.indexOf('Nombre limpio');
-  const iId = header.indexOf('ID') === -1 ? 3 : header.indexOf('ID');
+  // Los productos se buscan siempre por la columna "Nombre limpio" del índice de fotos.
+  const iCodigo = header.indexOf('Nombre limpio');
+  const iId = header.indexOf('ID');
+  if (iCodigo === -1 || iId === -1) throw new Error('El índice de fotos no tiene las columnas "Nombre limpio" e "ID".');
   const out = {};
   for (let r = 1; r < rows.length; r++){
     const row = rows[r];
