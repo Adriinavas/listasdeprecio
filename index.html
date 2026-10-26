@@ -1425,7 +1425,7 @@ $('#btnExportPDF').addEventListener('click', async () => {
     const promoTexto = t => t.split('\n\n').map(bloque => bloque.split('\n').join(' · ').replace(/:\s*·/g, ':')).join('   |   ');
     const rows = flatEntries.map(e => e.type === 'promo'
       ? [{ content: '', styles: { minCellHeight: 0 } },
-         { content: 'Promoción: ' + promoTexto(e.line.promocion), colSpan: 4, styles: { fontSize: 7.5, textColor: [55, 48, 163], fillColor: [238, 240, 253], minCellHeight: 0, cellPadding: { top: 1.2, bottom: 1.2, left: 2, right: 2 } } }]
+         { content: 'Promoción: ' + promoTexto(e.line.promocion), colSpan: 4, styles: { fontSize: 7.5, textColor: BLUE, fillColor: [235, 247, 253], minCellHeight: 0, cellPadding: { top: 1.2, bottom: 1.2, left: 2, right: 2 } } }]
       : e.type === 'group'
       ? [{ content: e.nombre, colSpan: 5, styles: { fontStyle: 'bold', fontSize: 8, fillColor: [240, 242, 245], textColor: [37, 35, 38], minCellHeight: 0, cellPadding: { top: 1.2, bottom: 1.2, left: 2, right: 2 } } }]
       : ['', e.line.desc + '\nCódigo: ' + e.line.codigo + (e.line.marca ? '  ·  Marca: ' + e.line.marca : ''),
