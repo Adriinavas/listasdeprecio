@@ -430,7 +430,12 @@ const CLIENTES_URLS = [
   'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/gviz/tq?tqx=out:csv&gid=814469810',
   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQzqvFIW3UbGsp1mpVC3Q7RZXF85d_T6O7cpEIOt5czUq3JmVqvhMXPdvQosD81ui2f36n5Y79jPdTx/pub?gid=814469810&single=true&output=csv'
 ];
-const PHOTO_INDEX_URL = 'https://docs.google.com/spreadsheets/d/1biAtWEcnP0OpIwMV6gJzv3dmEl5veQQmM7ba3u95szY/gviz/tq?tqx=out:csv&gid=0';
+// Índice de fotos de Drive (código -> ID del archivo). Se usa primero el enlace publicado vigente;
+// el anterior queda solo de respaldo por si el nuevo no responde.
+const PHOTO_INDEX_URLS = [
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vSfQLox_2ZqVgU9guMw7z29ITRwTlJgQzfVXTLJVw-NlI4aUtLxIAQGOuo1oMo3p_bzCHdFJlAF8U-7/pub?gid=1880400235&single=true&output=csv',
+  'https://docs.google.com/spreadsheets/d/1biAtWEcnP0OpIwMV6gJzv3dmEl5veQQmM7ba3u95szY/gviz/tq?tqx=out:csv&gid=0'
+];
 
 const PRICE_LIST_COLUMNS = ['ARAGUAB','BOLIVARCVM','CARABOBENA','EPA','FERREBOT','GRUPOPICO','LARAB','LICCIONI','LPARAGUA','LPLARA','LPMARGARITAB','LPMARGARITAD','MAYOREOB','MAYOREOD','MAYOREOEPA','MAYOREOL','PILOTO D','PORTAL PILOT','PORTALARAGUB','PORTALARAGUD','PORTALCONTB','PORTALCONTD','PORTALD','PORTALLARAB','PORTALLARAD'];
 
@@ -543,6 +548,27 @@ function getPhotoSrcMed(codigo){
   const id = DRIVE_IDS[codigo];
   return id ? ('https://drive.google.com/thumbnail?id=' + id + '&sz=w400') : null;
 }
+// Si Drive no entrega una miniatura, se prueban otras dos rutas del mismo archivo antes de rendirse;
+// si ninguna sirve, se muestra un guion (igual que los productos que no tienen foto en el índice).
+document.addEventListener('error', e => {
+  const img = e.target;
+  if (!img || img.tagName !== 'IMG') return;
+  if (!img.dataset.photoId){
+    const m = /[?&]id=([^&]+)&sz=w(\d+)/.exec(img.src);
+    if (!m) return; // no es una foto de Drive
+    img.dataset.photoId = m[1]; img.dataset.photoSz = m[2];
+  }
+  const step = Number(img.dataset.photoTry || 0) + 1;
+  img.dataset.photoTry = String(step);
+  const id = img.dataset.photoId, sz = img.dataset.photoSz;
+  if (step === 1){ img.src = 'https://lh3.googleusercontent.com/d/' + id + '=w' + sz; return; }
+  if (step === 2){ img.src = 'https://drive.google.com/uc?export=view&id=' + id; return; }
+  const d = document.createElement('div');
+  d.textContent = '—';
+  if (img.classList.contains('prod-thumb')){ d.className = 'prod-thumb noimg'; img.replaceWith(d); }
+  else if (img.closest('.gimg')){ d.className = 'gnoimg'; img.replaceWith(d); }
+  else img.style.visibility = 'hidden';
+}, true);
 
 /* ======================= Estado de filtros ======================= */
 let activeFilters = { marca: new Set(), categoria: new Set(), subcategoria: new Set(), bdf: new Set() };
@@ -1377,7 +1403,7 @@ async function init(){
   }
 
   try {
-    const photoCsv = await fetchFirstWorking([PHOTO_INDEX_URL]);
+    const photoCsv = await fetchFirstWorking(PHOTO_INDEX_URLS);
     DRIVE_IDS = buildDriveIndex(photoCsv);
     renderTable();
   } catch (err){
