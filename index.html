@@ -148,7 +148,7 @@ table.cat .btn-add{font-size:16px}
 .promoChip{position:relative;color:#3730a3;background:#eef0fd;cursor:help}
 .promoBubble{display:none;position:absolute;left:0;bottom:calc(100% + 8px);z-index:25;width:260px;max-width:60vw;
   background:var(--card);color:var(--ink);font-size:12.5px;font-weight:400;line-height:1.4;text-align:left;
-  padding:10px 12px;border-radius:var(--radius);box-shadow:var(--shadow-lg);border:1px solid var(--border-strong);white-space:normal}
+  padding:10px 12px;border-radius:var(--radius);box-shadow:var(--shadow-lg);border:1px solid var(--border-strong);white-space:pre-line}
 .promoChip:hover .promoBubble, .promoChip:focus .promoBubble{display:block}
 .priceCell{font-weight:700;color:var(--rojo)}
 .priceCell.na{color:var(--mut);font-weight:400;font-size:16px}
@@ -221,6 +221,9 @@ table.cat .btn-add{font-size:16px}
 .filterToggle{display:none;align-items:center;gap:6px;padding:8px 12px;border:1px solid rgba(255,255,255,.75);border-radius:var(--radius);background:transparent;color:#fff;font-weight:700;font-size:16px;cursor:pointer}
 .sidebarOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:45}
 .sidebarOverlay.open{display:block}
+/* Burbuja de aviso junto a un control (fondo blanco, bordes redondeados) */
+.hintBubble{position:fixed;z-index:9999;max-width:320px;background:#fff;color:#252326;border:1px solid #dfe3e8;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.14);padding:9px 13px;font-size:15px;line-height:1.35;opacity:0;transform:translateY(-4px);transition:opacity .15s ease,transform .15s ease;pointer-events:none}
+.hintBubble.show{opacity:1;transform:translateY(0)}
 </style>
 </head>
 <body>
@@ -394,6 +397,7 @@ function toast(msg){
   t._h = setTimeout(() => t.classList.remove('on'), 2400);
 }
 function escAttr(s){ return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
+function escHtml(s){ return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function money(n){ return '$ ' + (Number(n)||0).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2}); }
 
 function parseCSV(text){
@@ -429,6 +433,11 @@ const ARTICULOS_URLS = [
 const CLIENTES_URLS = [
   'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/gviz/tq?tqx=out:csv&gid=814469810',
   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQzqvFIW3UbGsp1mpVC3Q7RZXF85d_T6O7cpEIOt5czUq3JmVqvhMXPdvQosD81ui2f36n5Y79jPdTx/pub?gid=814469810&single=true&output=csv'
+];
+// Promociones por artículo (columnas ARTICULO, PROMOCION, DESCRIPCION, OBSERVACIONES).
+const PROMOS_URLS = [
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vQzqvFIW3UbGsp1mpVC3Q7RZXF85d_T6O7cpEIOt5czUq3JmVqvhMXPdvQosD81ui2f36n5Y79jPdTx/pub?gid=10804827&single=true&output=csv',
+  'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/gviz/tq?tqx=out:csv&gid=10804827'
 ];
 // Índice de fotos de Drive (Nombre limpio -> ID del archivo).
 const PHOTO_INDEX_URLS = [
@@ -534,6 +543,35 @@ function buildDriveIndex(text){
     if (codigo && id && !(codigo in out)) out[codigo] = id;
   }
   return out;
+}
+
+// Índice de promociones: código de artículo -> texto de la(s) observación(es).
+// La hoja repite filas; se deja una sola vez cada promoción por artículo. Si un artículo
+// tiene varias promociones, sus textos se separan con una línea en blanco.
+function buildPromoIndex(text){
+  const rows = parseCSV(text);
+  if (!rows.length) return {};
+  const header = rows[0].map(h => h.trim().toUpperCase());
+  const iArt = header.indexOf('ARTICULO');
+  const iPromo = header.indexOf('PROMOCION');
+  const iObs = header.indexOf('OBSERVACIONES');
+  if (iArt === -1 || iObs === -1) throw new Error('La hoja de promociones no tiene las columnas ARTICULO y OBSERVACIONES.');
+  const porArticulo = {};
+  for (let r = 1; r < rows.length; r++){
+    const row = rows[r];
+    const codigo = (row[iArt] || '').trim();
+    const obs = (row[iObs] || '').split('\n').map(l => l.trim()).filter(Boolean).join('\n');
+    if (!codigo || !obs) continue;
+    const clave = (iPromo === -1 ? '' : (row[iPromo] || '').trim()) + '|' + obs;
+    if (!porArticulo[codigo]) porArticulo[codigo] = new Map();
+    if (!porArticulo[codigo].has(clave)) porArticulo[codigo].set(clave, obs);
+  }
+  const out = {};
+  Object.keys(porArticulo).forEach(c => { out[c] = [...porArticulo[c].values()].join('\n\n'); });
+  return out;
+}
+function applyPromos(index){
+  PRODUCTS.forEach(p => { if (index[p.codigo]) p.promocion = index[p.codigo]; });
 }
 
 function getPhotoSrc(codigo){
@@ -778,7 +816,7 @@ function cardHtml(p){
     <div class="gbody">
       <div class="gchips">
         <div class="gchipRow"><span class="chip gchipMarca" title="${escAttr(p.marca)}">${p.marca}</span><span class="chip bdf" title="${escAttr(p.bdf)}">${p.bdf}</span></div>
-        <div class="gchipRow">${p.factorVenta > 1 ? `<span class="chip" style="color:var(--mut);background:transparent;border:1px solid var(--border-strong)">Empaque x${p.factorVenta}</span>` : ''}${p.promocion ? `<span class="chip promoChip" tabindex="0">Promoción<span class="promoBubble">${p.promocion}</span></span>` : ''}</div>
+        <div class="gchipRow">${p.factorVenta > 1 ? `<span class="chip" style="color:var(--mut);background:transparent;border:1px solid var(--border-strong)">Empaque x${p.factorVenta}</span>` : ''}${p.promocion ? `<span class="chip promoChip" tabindex="0">Promoción<span class="promoBubble">${escHtml(p.promocion)}</span></span>` : ''}</div>
       </div>
       <div class="gdesc" title="${escAttr(p.descripcion)}">${p.descripcion}</div>
       <div class="gcode">Código ${p.codigo}</div>
@@ -817,7 +855,7 @@ function rowHtml(p){
     <td class="selectCell"><input type="checkbox" class="rowCheckbox" data-codigo="${escAttr(p.codigo)}" ${checked}></td>
     <td>${thumb}</td>
     <td class="prod-code">${p.codigo}</td>
-    <td><div class="prod-desc">${p.descripcion}</div><span class="chip">${p.marca}</span> <span class="chip bdf">${p.bdf}</span>${p.factorVenta > 1 ? ` <span class="chip" style="color:var(--mut);background:transparent;border:1px solid var(--border-strong)">Empaque x${p.factorVenta}</span>` : ''}${p.promocion ? ` <span class="chip promoChip" tabindex="0">Promoción<span class="promoBubble">${p.promocion}</span></span>` : ''}</td>
+    <td><div class="prod-desc">${p.descripcion}</div><span class="chip">${p.marca}</span> <span class="chip bdf">${p.bdf}</span>${p.factorVenta > 1 ? ` <span class="chip" style="color:var(--mut);background:transparent;border:1px solid var(--border-strong)">Empaque x${p.factorVenta}</span>` : ''}${p.promocion ? ` <span class="chip promoChip" tabindex="0">Promoción<span class="promoBubble">${escHtml(p.promocion)}</span></span>` : ''}</td>
     <td class="num">${p.disponible.toLocaleString('es-VE')}</td>
     <td class="num">${priceHtml}</td>
     <td class="num">${priceEmpaqueHtml}</td>
@@ -862,6 +900,31 @@ document.addEventListener('change', e => {
 /* ======================= Selección múltiple ======================= */
 let selectedCodes = new Set();
 
+// Muestra una burbuja blanca con bordes redondeados justo debajo del control indicado.
+let hintBubbleTimer = null;
+function showHintBubble(anchor, msg){
+  let b = document.getElementById('hintBubble');
+  if (!b){
+    b = document.createElement('div');
+    b.id = 'hintBubble';
+    b.className = 'hintBubble';
+    b.setAttribute('role', 'status');
+    document.body.appendChild(b);
+  }
+  b.textContent = msg;
+  b.classList.remove('show');
+  const r = anchor.getBoundingClientRect();
+  b.style.left = '0px'; b.style.top = '0px';
+  const bw = b.offsetWidth;
+  const left = Math.max(8, Math.min(r.left, window.innerWidth - bw - 8));
+  b.style.left = left + 'px';
+  b.style.top = (r.bottom + 8) + 'px';
+  requestAnimationFrame(() => b.classList.add('show'));
+  clearTimeout(hintBubbleTimer);
+  hintBubbleTimer = setTimeout(() => b.classList.remove('show'), 3500);
+}
+window.addEventListener('scroll', () => { const b = document.getElementById('hintBubble'); if (b) b.classList.remove('show'); }, true);
+
 // ¿Hay algún filtro, búsqueda u "Oportunidades" activo? (evita seleccionar todo el surtido)
 function hasActiveFilter(){
   return onlyPromo || searchQuery.trim() !== '' ||
@@ -886,7 +949,7 @@ document.addEventListener('change', e => {
     if (e.target.checked && !hasActiveFilter()){
       $('#selectAllCheckbox').checked = false;
       $('#selectAllGrid').checked = false;
-      alert('Es necesario que selecciones un filtro para poder generar la lista.');
+      showHintBubble(e.target, 'Es necesario que selecciones un filtro para poder generar la lista.');
       return;
     }
     $('#selectAllCheckbox').checked = e.target.checked;
@@ -1171,6 +1234,7 @@ $('#btnExportExcel').addEventListener('click', async () => {
           formula: `IF(H${rowIdx}="","",INT(H${rowIdx}/G${rowIdx})*F${rowIdx}+MOD(H${rowIdx},G${rowIdx})*E${rowIdx})`
         };
         row.getCell('promocion').value = l.promocion;
+        row.getCell('promocion').alignment = { wrapText: true, vertical: 'top' };
         row.height = PHOTO_ROW_HEIGHT_PTS;
 
         const photoUrl = getPhotoSrcBig(l.codigo);
@@ -1285,9 +1349,17 @@ $('#btnExportPDF').addEventListener('click', async () => {
     const flatEntries = [];
     groups.forEach(g => {
       if (g.nombre) flatEntries.push({ type: 'group', nombre: g.nombre });
-      g.items.forEach(l => flatEntries.push({ type: 'item', line: l }));
+      g.items.forEach(l => {
+        flatEntries.push({ type: 'item', line: l });
+        if (l.promocion) flatEntries.push({ type: 'promo', line: l });
+      });
     });
-    const rows = flatEntries.map(e => e.type === 'group'
+    // Texto de promoción en una sola línea continua (el PDF lo ajusta al ancho de la columna).
+    const promoTexto = t => t.split('\n\n').map(bloque => bloque.split('\n').join(' · ').replace(/:\s*·/g, ':')).join('   |   ');
+    const rows = flatEntries.map(e => e.type === 'promo'
+      ? [{ content: '', styles: { minCellHeight: 0 } },
+         { content: 'Promoción: ' + promoTexto(e.line.promocion), colSpan: 4, styles: { fontSize: 7.5, textColor: [55, 48, 163], fillColor: [238, 240, 253], minCellHeight: 0, cellPadding: { top: 1.2, bottom: 1.2, left: 2, right: 2 } } }]
+      : e.type === 'group'
       ? [{ content: e.nombre, colSpan: 5, styles: { fontStyle: 'bold', fontSize: 8, fillColor: [240, 242, 245], textColor: [37, 35, 38], minCellHeight: 0, cellPadding: { top: 1.2, bottom: 1.2, left: 2, right: 2 } } }]
       : ['', e.line.desc + '\nCódigo: ' + e.line.codigo + (e.line.marca ? '  ·  Marca: ' + e.line.marca : ''),
          String(e.line.qty), money(e.line.price), money(e.line.precioEmpaque)]
@@ -1364,6 +1436,8 @@ $('#btnExportPDF').addEventListener('click', async () => {
 const DEFAULT_CLIENT_CODE = '25-10-718';
 
 async function init(){
+  // Las promociones se piden en paralelo; si fallan, el catálogo carga igual (sin etiquetas).
+  const promosPromise = fetchFirstWorking(PROMOS_URLS).catch(err => { console.error('No se pudieron cargar las promociones:', err); return null; });
   try {
     const [articulosCsv, clientesCsv] = await Promise.all([
       fetchFirstWorking(ARTICULOS_URLS),
@@ -1371,6 +1445,11 @@ async function init(){
     ]);
     PRODUCTS = buildProducts(articulosCsv);
     CLIENTS = buildClients(clientesCsv);
+    const promosCsv = await promosPromise;
+    if (promosCsv){
+      try { applyPromos(buildPromoIndex(promosCsv)); }
+      catch (err){ console.error('Error leyendo las promociones:', err); }
+    }
     renderAllFilterGroups();
     const defaultClient = CLIENTS.find(c => c.code === DEFAULT_CLIENT_CODE);
     if (defaultClient) selectClient(defaultClient);
