@@ -1445,7 +1445,7 @@ $('#btnExportPDF').addEventListener('click', async () => {
       doc.text('Lista de precios' + (selectedClient ? ' — ' + selectedClient.name : ''), marginX, 12);
     }
     function drawPageFooter(data){
-      if (data.pageNumber > 1){ drawWatermark(); drawContinuationHeader(); }
+      if (data.pageNumber > 1) drawContinuationHeader();
       const footY = doc.internal.pageSize.getHeight() - 12;
       doc.setDrawColor(222, 226, 230);
       doc.setLineWidth(0.3);
@@ -1485,6 +1485,9 @@ $('#btnExportPDF').addEventListener('click', async () => {
           }
         }
       },
+      // La marca de agua se dibuja ANTES del contenido de cada página nueva, para que quede detrás del texto
+      // (en la primera página ya se dibujó al inicio, antes del encabezado).
+      willDrawPage: function(data){ if (data.pageNumber > 1) drawWatermark(); },
       didDrawPage: drawPageFooter
     });
 
