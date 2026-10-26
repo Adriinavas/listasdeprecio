@@ -444,10 +444,12 @@ const CLIENTES_URLS = [
   'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/gviz/tq?tqx=out:csv&gid=814469810',
   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQzqvFIW3UbGsp1mpVC3Q7RZXF85d_T6O7cpEIOt5czUq3JmVqvhMXPdvQosD81ui2f36n5Y79jPdTx/pub?gid=814469810&single=true&output=csv'
 ];
-// Promociones por artículo (columnas ARTICULO, PROMOCION, DESCRIPCION, OBSERVACIONES).
+// Promociones por artículo (columnas "artículo" y "description").
+// Primero la lectura directa de la hoja (siempre al día); el enlace publicado queda de respaldo,
+// porque Google tarda unos minutos en refrescar la versión publicada.
 const PROMOS_URLS = [
-  'https://docs.google.com/spreadsheets/d/e/2PACX-1vQzqvFIW3UbGsp1mpVC3Q7RZXF85d_T6O7cpEIOt5czUq3JmVqvhMXPdvQosD81ui2f36n5Y79jPdTx/pub?gid=10804827&single=true&output=csv',
-  'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/gviz/tq?tqx=out:csv&gid=10804827'
+  'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/gviz/tq?tqx=out:csv&gid=10804827',
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vQzqvFIW3UbGsp1mpVC3Q7RZXF85d_T6O7cpEIOt5czUq3JmVqvhMXPdvQosD81ui2f36n5Y79jPdTx/pub?gid=10804827&single=true&output=csv'
 ];
 // Índice de fotos de Drive (Nombre limpio -> ID del archivo).
 const PHOTO_INDEX_URLS = [
@@ -555,29 +557,29 @@ function buildDriveIndex(text){
   return out;
 }
 
-// Índice de promociones: código de artículo -> texto de la(s) observación(es).
-// La hoja repite filas; se deja una sola vez cada promoción por artículo. Si un artículo
-// tiene varias promociones, sus textos se separan con una línea en blanco.
+// Índice de promociones: código de artículo -> texto a mostrar (columna "description").
+// Si un artículo aparece varias veces con textos distintos, se muestran todos separados por una
+// línea en blanco; los textos repetidos se dejan una sola vez.
 function buildPromoIndex(text){
   const rows = parseCSV(text);
   if (!rows.length) return {};
-  const header = rows[0].map(h => h.trim().toUpperCase());
+  const norm = h => h.trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const header = rows[0].map(norm);
   const iArt = header.indexOf('ARTICULO');
-  const iPromo = header.indexOf('PROMOCION');
-  const iObs = header.indexOf('OBSERVACIONES');
-  if (iArt === -1 || iObs === -1) throw new Error('La hoja de promociones no tiene las columnas ARTICULO y OBSERVACIONES.');
+  // "description" es la columna actual; OBSERVACIONES/DESCRIPCION se aceptan por compatibilidad.
+  const iTxt = ['DESCRIPTION', 'OBSERVACIONES', 'DESCRIPCION'].map(n => header.indexOf(n)).find(i => i !== -1);
+  if (iArt === -1 || iTxt === undefined) throw new Error('La hoja de promociones no tiene las columnas "artículo" y "description".');
   const porArticulo = {};
   for (let r = 1; r < rows.length; r++){
     const row = rows[r];
     const codigo = (row[iArt] || '').trim();
-    const obs = (row[iObs] || '').split('\n').map(l => l.trim()).filter(Boolean).join('\n');
-    if (!codigo || !obs) continue;
-    const clave = (iPromo === -1 ? '' : (row[iPromo] || '').trim()) + '|' + obs;
-    if (!porArticulo[codigo]) porArticulo[codigo] = new Map();
-    if (!porArticulo[codigo].has(clave)) porArticulo[codigo].set(clave, obs);
+    const txt = (row[iTxt] || '').split('\n').map(l => l.trim()).filter(Boolean).join('\n');
+    if (!codigo || !txt) continue;
+    if (!porArticulo[codigo]) porArticulo[codigo] = new Set();
+    porArticulo[codigo].add(txt);
   }
   const out = {};
-  Object.keys(porArticulo).forEach(c => { out[c] = [...porArticulo[c].values()].join('\n\n'); });
+  Object.keys(porArticulo).forEach(c => { out[c] = [...porArticulo[c]].join('\n\n'); });
   return out;
 }
 function applyPromos(index){
